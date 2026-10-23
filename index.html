@@ -1,0 +1,286 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Huerto Inteligente</title>
+  <meta name="description" content="Huerto Inteligente: riego automatizado con un motor en C compilado a WebAssembly y control de plagas que siempre decide el usuario.">
+  <!-- Tipografías: Chakra Petch (títulos técnicos), Instrument Sans (texto), JetBrains Mono (código) -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=Instrument+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <!-- Cursor personalizado: solo se activa con mouse (ver script.js) -->
+  <div class="cursor" aria-hidden="true"></div>
+
+  <!-- ============ CABECERA ============ -->
+  <header class="bar">
+    <div class="wrap bar-in">
+      <a class="brand" href="#inicio" aria-label="Huerto Inteligente, ir al inicio">
+        <svg viewBox="0 0 32 32" aria-hidden="true">
+          <path d="M16 28V15" class="brand-stem"/>
+          <path d="M16 19c-6.2.4-9.3-3.2-9.6-7.4 5.4-.3 9.3 2.1 9.6 7.4z" class="brand-leaf"/>
+          <path d="M16 15c.5-5.7 4.1-8.8 9.3-8.8 0 5.2-3.6 8.3-9.3 8.8z" class="brand-drop"/>
+        </svg>
+        <span>Huerto Inteligente</span>
+      </a>
+      <nav class="nav" aria-label="Secciones">
+        <a href="#funcionamiento">Funcionamiento</a>
+        <a href="#proyecto">El proyecto</a>
+        <a href="#app">La app</a>
+      </nav>
+    </div>
+  </header>
+
+  <main id="inicio">
+    <!-- ============ HERO: el huerto corriendo en vivo ============ -->
+    <section class="hero">
+      <div class="wrap hero-grid">
+        <div class="hero-copy">
+          <p class="hero-tag">Feria Tecnológica e Innovación Emprende 2026-II</p>
+          <h1 class="hero-title">
+            <span class="line"><span>El riego lo decide</span></span>
+            <span class="line"><span>un programa en C.</span></span>
+            <span class="line"><span>La plaga, tú.</span></span>
+          </h1>
+          <p class="lead">Un ESP32 mide la humedad de la tierra y riega solo, con límites de seguridad. Cuando la cámara ve una plaga, te avisa y espera tu permiso. A la derecha corre ese mismo motor, escrito en C y ejecutado en tu navegador.</p>
+          <div class="cta">
+            <a class="btn btn-solid" href="#funcionamiento">Ver cómo funciona</a>
+            <a class="btn btn-line" href="#app">Tener la app</a>
+          </div>
+        </div>
+
+        <figure class="hero-live glass" data-tilt-off>
+          <canvas id="soil" aria-label="Corte del huerto: planta, suelo con nivel de humedad y sensor, animado en tiempo real" role="img"></canvas>
+          <figcaption class="readout">
+            <div class="ro"><span>Humedad medida</span><strong id="r-hum">--</strong></div>
+            <div class="ro"><span>Bomba de riego</span><strong id="r-pump">--</strong></div>
+            <div class="ro"><span>Motor</span><strong id="r-engine">Cargando…</strong></div>
+          </figcaption>
+          <p class="live-note">El suelo es simulado. Cada decisión de riego la toma <code>main.c</code>.</p>
+        </figure>
+      </div>
+    </section>
+
+    <!-- ============ FUNCIONAMIENTO: 3 pasos + simulación en vivo ============ -->
+    <section id="funcionamiento" class="block">
+      <div class="wrap">
+        <div class="sec-head">
+          <h2 data-reveal>Así funciona el huerto</h2>
+          <p class="sec-lead" data-reveal>Cada 100 milisegundos el sistema repite tres pasos. Más abajo puedes moverlo tú: es una simulación del prototipo, y cada decisión la toma su motor escrito en C.</p>
+        </div>
+        <div class="steps3">
+          <article class="dstep glass">
+            <span class="num">1</span>
+            <h3>Mide</h3>
+            <p>Los sensores capacitivos leen la humedad de la tierra y la cámara vigila las hojas.</p>
+          </article>
+          <article class="dstep glass">
+            <span class="num">2</span>
+            <h3>Decide</h3>
+            <p>Si la humedad baja de 35 %, riega hasta llegar a 60 %. Nunca riega más de 5 segundos seguidos y espera 20 segundos entre riegos.</p>
+          </article>
+          <article class="dstep glass">
+            <span class="num">3</span>
+            <h3>Actúa, con tu permiso</h3>
+            <p>La bomba de riego actúa sola. El pulverizador solo funciona si tú lo autorizas y si el depósito tiene líquido.</p>
+          </article>
+        </div>
+        <h3 class="lab-title" data-reveal>Pruébalo en vivo</h3>
+        <div class="lab">
+          <!-- Gráfico de los últimos 60 segundos -->
+          <div class="panel glass lab-chart">
+            <div class="panel-head">
+              <h3>Humedad en los últimos 60 segundos</h3>
+              <div class="speed" role="group" aria-label="Velocidad de la simulación">
+                <button type="button" class="chip is-on" data-speed="1" aria-pressed="true">1×</button>
+                <button type="button" class="chip" data-speed="4" aria-pressed="false">4×</button>
+                <button type="button" class="chip" data-speed="0" aria-pressed="false">Pausa</button>
+              </div>
+            </div>
+            <canvas id="chart" role="img" aria-label="Gráfico de la humedad del suelo con los periodos de riego y pulverización"></canvas>
+            <ul class="legend">
+              <li><i class="lg-water"></i>Humedad del suelo</li>
+              <li><i class="lg-pump"></i>Bomba de riego encendida</li>
+              <li><i class="lg-spray"></i>Pulverizador encendido</li>
+              <li><i class="lg-limit"></i>Umbrales</li>
+            </ul>
+            <div class="stats">
+              <div><span>Tiempo simulado</span><strong id="s-time">0,0 s</strong></div>
+              <div><span>Ciclos del motor</span><strong id="s-cycles">0</strong></div>
+              <div><span>Lectura cruda</span><strong id="s-raw">--</strong></div>
+              <div><span>Riegos</span><strong id="s-irr">0</strong></div>
+            </div>
+          </div>
+
+          <!-- Controles -->
+          <div class="panel glass lab-controls">
+            <h3>Condiciones y límites</h3>
+            <div class="field">
+              <label for="in-sol">Sol y evaporación</label>
+              <output for="in-sol" id="o-sol">30 %</output>
+              <input type="range" id="in-sol" min="0" max="100" value="30">
+            </div>
+            <div class="field">
+              <label for="in-riego">Regar si baja de</label>
+              <output for="in-riego" id="o-riego">35 %</output>
+              <input type="range" id="in-riego" min="10" max="60" value="35">
+            </div>
+            <div class="field">
+              <label for="in-parar">Parar al llegar a</label>
+              <output for="in-parar" id="o-parar">60 %</output>
+              <input type="range" id="in-parar" min="30" max="95" value="60">
+            </div>
+            <div class="field">
+              <label for="in-max">Riego máximo seguido</label>
+              <output for="in-max" id="o-max">5 s</output>
+              <input type="range" id="in-max" min="1" max="15" value="5">
+            </div>
+            <div class="field">
+              <label for="in-tank">Nivel del depósito del pulverizador</label>
+              <output for="in-tank" id="o-tank">80 %</output>
+              <input type="range" id="in-tank" min="0" max="100" value="80">
+            </div>
+            <div class="lab-actions">
+              <button type="button" class="btn btn-line btn-sm" id="b-rain">Simular lluvia</button>
+              <button type="button" class="btn btn-line btn-sm" id="b-pest">Simular plaga</button>
+            </div>
+          </div>
+
+          <!-- Aviso de plaga: aparece cuando el motor espera autorización -->
+          <div class="panel glass lab-pest" id="pest-card" hidden>
+            <div class="pest-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24"><path d="M3 7h3l1.5-2h5L14 7h3a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2z"/><circle cx="11" cy="13" r="3.2"/></svg>
+            </div>
+            <div>
+              <h3>La cámara detectó una posible plaga</h3>
+              <p>El pulverizador no se activará hasta que decidas. Si el depósito tiene menos de 10 %, el motor rechazará la orden.</p>
+              <div class="lab-actions">
+                <button type="button" class="btn btn-solid btn-sm" id="b-auth">Autorizar pulverizador</button>
+                <button type="button" class="btn btn-line btn-sm" id="b-dismiss">Descartar aviso</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Registro de eventos que emite el motor en C -->
+          <div class="panel glass lab-log">
+            <h3>Registro del motor</h3>
+            <ol id="log" class="log" aria-live="polite"></ol>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ EN QUÉ SE BASA EL PROYECTO ============ -->
+    <section id="proyecto" class="block">
+      <div class="wrap basis">
+        <div class="basis-copy">
+          <h2 data-reveal>En qué se basa el proyecto</h2>
+          <p class="sec-lead" data-reveal>En un huerto doméstico o pequeño, el riego suele hacerse a ojo: se riega de más o de menos, las plagas se notan cuando el daño ya avanzó y no queda ningún registro para mejorar. La agricultura de riego es el mayor uso del agua dulce en el mundo (FAO, 2021), así que cada litro cuenta.</p>
+          <p class="sec-lead" data-reveal>Nuestra propuesta es un huerto que mide antes de regar, que vigila las plantas con una cámara y que deja en tus manos la decisión de tratar una plaga. Funciona aunque no haya internet y usa energía solar.</p>
+          <div class="goal glass" data-reveal>
+            <strong>−30 %</strong>
+            <p>Es nuestra meta de reducción del consumo de agua de riego. Todavía es una meta: la mediremos con el prototipo.</p>
+          </div>
+        </div>
+        <div class="basis-list">
+          <article class="feat glass" data-tilt>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3c-3 4-6 7-6 10.5a6 6 0 0 0 12 0C18 10 15 7 12 3z"/></svg>
+            <h3>Agua sin medir</h3>
+            <p>Se riega por costumbre, sin saber cuánta humedad tiene la tierra.</p>
+          </article>
+          <article class="feat glass" data-tilt>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+            <h3>Plagas vistas tarde</h3>
+            <p>Cuando se notan a simple vista, el daño en las hojas ya avanzó.</p>
+          </article>
+          <article class="feat glass" data-tilt>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20V10M10 20V4M16 20v-8M22 20H2"/></svg>
+            <h3>Sin datos</h3>
+            <p>No queda un historial de riego ni de humedad para decidir mejor.</p>
+          </article>
+          <div class="ods-row">
+            <span>ODS 6: agua limpia</span>
+            <span>ODS 12: consumo responsable</span>
+          </div>
+          <p class="basis-note">Proyecto diseñado con el método ADM de TOGAF en el curso Gestión de Procesos de Negocios.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ LA APP: cierre de la página ============ -->
+    <section id="app" class="block">
+      <div class="wrap">
+        <div class="sec-head">
+          <h2 data-reveal>Ten el huerto en tu celular</h2>
+          <p class="sec-lead" data-reveal>La app se conecta al huerto por Wi-Fi local o Bluetooth. La versión demo está en desarrollo y llegará con las funciones que ya tiene el prototipo.</p>
+        </div>
+        <div class="feats">
+          <article class="feat glass" data-tilt>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3c-3 4-6 7-6 10.5a6 6 0 0 0 12 0C18 10 15 7 12 3z"/></svg>
+            <h3>Humedad de cada zona</h3>
+            <p>Ves la humedad que miden los sensores, actualizada en el momento.</p>
+          </article>
+          <article class="feat glass" data-tilt>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+            <h3>Riego automático o manual</h3>
+            <p>Deja que el huerto riegue solo o riega tú. Los límites de seguridad siguen activos.</p>
+          </article>
+          <article class="feat glass" data-tilt>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7h3l1.5-2h5L14 7h3a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2z"/><circle cx="11" cy="13" r="3.2"/></svg>
+            <h3>Avisos de plaga con foto</h3>
+            <p>La cámara vigila las plantas y te muestra lo que detectó para que lo revises.</p>
+          </article>
+          <article class="feat glass" data-tilt>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>
+            <h3>Tú autorizas el tratamiento</h3>
+            <p>El pulverizador solo actúa cuando confirmas. Sin tu permiso, no se mueve.</p>
+          </article>
+        </div>
+
+        <div class="download glass">
+          <div>
+            <h3>Descarga de la app</h3>
+            <p>El enlace aparecerá aquí cuando la versión demo esté lista. Necesitarás un celular con Wi-Fi o Bluetooth y el prototipo encendido cerca.</p>
+          </div>
+          <button type="button" class="btn btn-solid" disabled>Descarga disponible pronto</button>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- ============ PIE ============ -->
+  <footer class="foot">
+    <div class="wrap foot-in">
+      <div>
+        <p class="foot-title">Huerto Inteligente</p>
+        <p>Proyecto académico del curso Gestión de Procesos de Negocios, 4.º ciclo, sección IG3N1. Facultad de Ingeniería, Universidad Norbert Wiener.</p>
+      </div>
+      <div>
+        <p class="foot-label">Equipo</p>
+        <ul>
+          <li>Julinho Ramses Milla Tardio</li>
+          <li>Juan Alberto Marquez Salazar</li>
+          <li>Darly Cielo Quispe Mimbela</li>
+          <li>Anthony Andre Prado Pasache</li>
+        </ul>
+      </div>
+      <div>
+        <p class="foot-label">Docente asesor</p>
+        <ul><li>Rosa Isabel Maquen Guevara</li></ul>
+        <p class="foot-label">Presentación</p>
+        <ul><li>21 de noviembre de 2026, Lima</li><li>Contribuye a los ODS 6 y 12</li></ul>
+      </div>
+    </div>
+  </footer>
+
+  <!-- Librerías de animación (CDN, versiones fijas) -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js"></script>
+  <script src="https://unpkg.com/lenis@1.1.13/dist/lenis.min.js"></script>
+  <script src="script.js"></script>
+</body>
+</html>
