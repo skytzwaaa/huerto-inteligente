@@ -6,6 +6,7 @@
 - `script.js`: carga el motor en C, corre la simulación, dibuja los gráficos y anima la página (GSAP + ScrollTrigger + Lenis por CDN).
 - `main.c`: motor de riego y pulverizador. Es la misma lógica del ESP32 del prototipo.
 - `main.wasm`: `main.c` ya compilado a WebAssembly.
+- La cámara (ESP32-CAM) se simula con una vista térmica: detecta la plaga sola y avisa al llegar a 40 % de confianza. El depósito se llena solo cuando baja de 10 %.
 
 ## Ver la página
 Opción rápida: abre `index.html` con doble clic. `script.js` trae una copia del motor incrustada, así que funciona sin servidor.

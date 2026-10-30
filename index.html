@@ -88,7 +88,7 @@
           <article class="dstep glass">
             <span class="num">3</span>
             <h3>Actúa, con tu permiso</h3>
-            <p>La bomba de riego actúa sola, solo cuando la tierra está seca. El pulverizador solo funciona si tú lo autorizas y si el depósito tiene líquido.</p>
+            <p>La bomba de riego actúa sola, solo cuando la tierra está seca. El pulverizador solo funciona si tú lo autorizas. Si el depósito se acaba, una válvula lo llena sola.</p>
           </article>
         </div>
         <h3 class="lab-title" data-reveal>Pruébalo en vivo</h3>
@@ -153,25 +153,44 @@
               <output for="in-tank" id="o-tank">80 %</output>
               <input type="range" id="in-tank" min="0" max="100" value="80">
               <p class="hint" id="o-cm">Sensor ultrasónico: -- cm hasta el agua</p>
+              <p class="hint">Si baja de 10 %, se abre la válvula y el depósito se llena solo.</p>
             </div>
             <div class="lab-actions">
-              <button type="button" class="btn btn-line btn-sm" id="b-fill">Rellenar depósito</button>
               <button type="button" class="btn btn-line btn-sm" id="b-rain">Simular lluvia</button>
-              <button type="button" class="btn btn-line btn-sm" id="b-pest">Simular plaga</button>
             </div>
           </div>
 
-          <!-- Aviso de plaga: aparece cuando el motor espera autorización -->
-          <div class="panel glass lab-pest" id="pest-card" hidden>
-            <div class="pest-icon" aria-hidden="true">
-              <svg viewBox="0 0 24 24"><path d="M3 7h3l1.5-2h5L14 7h3a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2z"/><circle cx="11" cy="13" r="3.2"/></svg>
+          <!-- Cámara con IA: detecta la plaga sola y pide autorización -->
+          <div class="panel glass lab-cam">
+            <div class="panel-head">
+              <h3>Cámara de plagas</h3>
+              <button type="button" class="btn btn-line btn-sm" id="b-pest">Simular plaga</button>
             </div>
-            <div>
-              <h3>La cámara detectó una posible plaga</h3>
-              <p>El pulverizador no se activará hasta que decidas. Si el depósito tiene menos de 10 %, el motor rechazará la orden.</p>
-              <div class="lab-actions">
-                <button type="button" class="btn btn-solid btn-sm" id="b-auth">Autorizar pulverizador</button>
-                <button type="button" class="btn btn-line btn-sm" id="b-dismiss">Descartar aviso</button>
+            <div class="cam-body">
+              <canvas id="cam" aria-label="Vista térmica simulada de la cámara"></canvas>
+              <div class="cam-side">
+                <div class="cam-meter">
+                  <span>Confianza de la IA <b id="cam-conf">0 %</b></span>
+                  <div class="bar"><i id="cam-bar"></i><u></u></div>
+                  <small>Avisa al llegar a 40 %</small>
+                </div>
+                <div class="cam-stats">
+                  <div><span>Estado</span><b id="cam-estado">Sin plagas</b></div>
+                  <div><span>Plagas visibles</span><b id="cam-count">0</b></div>
+                </div>
+              <div class="lab-pest" id="pest-card" hidden>
+                <div class="pest-icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24"><path d="M3 7h3l1.5-2h5L14 7h3a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2z"/><circle cx="11" cy="13" r="3.2"/></svg>
+                </div>
+                <div>
+                  <h3>La cámara detectó una posible plaga</h3>
+                  <p>El pulverizador no se activará hasta que decidas. Si el depósito tiene menos de 10 %, el motor rechazará la orden hasta que se llene.</p>
+                  <div class="lab-actions">
+                    <button type="button" class="btn btn-solid btn-sm" id="b-auth">Autorizar pulverizador</button>
+                    <button type="button" class="btn btn-line btn-sm" id="b-dismiss">Descartar aviso</button>
+                  </div>
+                </div>
+              </div>
               </div>
             </div>
           </div>

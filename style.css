@@ -261,7 +261,7 @@ code { font-family: var(--f-mono); font-size: 0.9em; color: var(--agua); }
   grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr);
   grid-template-areas:
     "chart controls"
-    "pest  controls"
+    "cam   cam"
     "hist  hist"
     "log   log";
   gap: var(--gap);
@@ -270,9 +270,22 @@ code { font-family: var(--f-mono); font-size: 0.9em; color: var(--agua); }
 .panel h3 { font-size: 1.15rem; font-weight: 600; }
 .lab-chart { grid-area: chart; display: flex; flex-direction: column; gap: 14px; }
 .lab-controls { grid-area: controls; display: flex; flex-direction: column; gap: 18px; }
-.lab-pest { grid-area: pest; display: grid; grid-template-columns: 52px minmax(0, 1fr); gap: 16px; border-color: rgba(255, 184, 77, 0.5); background: rgba(255, 184, 77, 0.07); }
+.lab-pest { display: grid; grid-template-columns: 52px minmax(0, 1fr); gap: 16px; border-color: rgba(255, 184, 77, 0.5); background: rgba(255, 184, 77, 0.07); }
 .lab-pest p { color: var(--dim); margin-top: 6px; }
 .lab-log { grid-area: log; }
+.lab-cam { grid-area: cam; display: flex; flex-direction: column; gap: 14px; }
+.cam-body { display: grid; grid-template-columns: minmax(0, 340px) minmax(0, 1fr); gap: 20px; align-items: start; }
+.cam-body canvas { width: 100%; aspect-ratio: 1; border-radius: 12px; border: 1px solid var(--line, rgba(255,255,255,.12)); display: block; background: #05000f; }
+.cam-side { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+.cam-meter span { display: flex; justify-content: space-between; color: var(--dim); font-size: .9rem; }
+.cam-meter b { color: var(--sol); font-family: 'JetBrains Mono', monospace; }
+.cam-meter .bar { position: relative; height: 8px; border-radius: 6px; background: rgba(255,255,255,.1); margin: 8px 0 4px; overflow: hidden; }
+.cam-meter .bar i { position: absolute; inset: 0 auto 0 0; width: 0; background: linear-gradient(90deg, var(--agua), var(--sol), var(--alerta)); transition: width .25s; }
+.cam-meter .bar u { position: absolute; left: 40%; top: 0; bottom: 0; width: 2px; background: #fff; }
+.cam-meter small { color: var(--dim); font-size: .78rem; }
+.cam-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.cam-stats span { display: block; color: var(--dim); font-size: .8rem; }
+.cam-stats b { font-size: 1.05rem; }
 .lab-hist { grid-area: hist; display: flex; flex-direction: column; gap: 14px; }
 .hist-note { color: var(--dim); font-size: 0.92rem; margin-top: -6px; }
 #hist { width: 100%; height: clamp(200px, 26vw, 260px); display: block; }
@@ -433,9 +446,10 @@ select {
 .cursor.is-hover { width: 60px; height: 60px; margin: -30px 0 0 -30px; background: rgba(85, 224, 242, 0.12); }
 
 /* ============================ ADAPTABLE ============================ */
+@media (max-width: 700px) { .cam-body { grid-template-columns: minmax(0, 1fr); } }
 @media (max-width: 1020px) {
   .feats, .files { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .lab { grid-template-columns: minmax(0, 1fr); grid-template-areas: "chart" "pest" "controls" "hist" "log"; }
+  .lab { grid-template-columns: minmax(0, 1fr); grid-template-areas: "chart" "controls" "cam" "hist" "log"; }
 }
 @media (max-width: 900px) {
   .hero-grid, .decide-grid { grid-template-columns: minmax(0, 1fr); }

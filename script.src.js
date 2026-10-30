@@ -30,22 +30,22 @@
   class MotorJS {
     constructor() {
       const f = Math.fround;
-      this.cfg = { seco: 2498, mojado: 1000, umbral_riego: 35, umbral_parar: 60, max_riego_ms: 5000, espera_ms: 20000, pulveriza_ms: 3000, nivel_minimo: 10 };
+      this.cfg = { seco: 2498, mojado: 1000, umbral_riego: 35, umbral_parar: 60, max_riego_ms: 5000, espera_ms: 20000, pulveriza_ms: 3000, nivel_minimo: 10, camara_umbral: 40, espera_aviso_ms: 30000 };
       this.st = this.estadoInicial();
       this.cola = [];
       this.ultimoT = 0;
-      this.reloj = 0;
       this.suelo = f(42);
       this.tanque = f(80);
       this.tempC = f(21);
       this.aire = f(70);
+      this.plaga = f(0);
+      this.confianza = f(0);
       this.temp10 = 210;
       this.aireLec = 70;
-      this.vacioAvisado = 0;
       this.semilla = 20261121 >>> 0;
     }
     estadoInicial() {
-      return { regando: 0, inicio_riego: 0, fin_riego: -1000000, plaga_pendiente: 0, pulverizando: 0, inicio_pulv: 0, nivel_deposito: 80, humedad: 0 };
+      return { regando: 0, inicio_riego: 0, fin_riego: -1000000, plaga_pendiente: 0, pulverizando: 0, inicio_pulv: 0, nivel_deposito: 80, humedad: 0, llenando: 0, ultimo_aviso: -1000000 };
     }
     static limitar(v, a, b) { return v < a ? a : v > b ? b : v; }
     static azar(obj, key) { obj[key] = (Math.imul(obj[key], 1664525) + 1013904223) >>> 0; return obj[key] >>> 8; }
@@ -59,7 +59,6 @@
       const c = this.cfg;
       const h = this.hi_humedad(crudo);
       e.humedad = h;
-      if (conEventos) this.reloj = ahora;
       if (!e.regando) {
         if (h < c.umbral_riego && ahora - e.fin_riego >= c.espera_ms) {
           e.regando = 1; e.inicio_riego = ahora;
@@ -76,17 +75,34 @@
         e.pulverizando = 0;
         if (conEventos) this.emitir(6, ahora);
       }
-      return e.regando | (e.pulverizando << 1) | (e.plaga_pendiente << 2);
+      // Llenado automático del depósito
+      if (!e.llenando) {
+        if (e.nivel_deposito < c.nivel_minimo) {
+          e.llenando = 1;
+          if (conEventos) this.emitir(10, ahora);
+        }
+      } else if (e.nivel_deposito >= 100) {
+        e.llenando = 0;
+        if (conEventos) this.emitir(11, ahora);
+      }
+      // Cámara con IA: si ve una plaga con suficiente confianza, avisa y espera al usuario
+      if (conEventos && !e.plaga_pendiente && !e.pulverizando &&
+          this.confianza >= c.camara_umbral && ahora - e.ultimo_aviso >= c.espera_aviso_ms) {
+        e.plaga_pendiente = 1;
+        e.ultimo_aviso = ahora;
+        this.emitir(4, ahora);
+      }
+      return e.regando | (e.pulverizando << 1) | (e.plaga_pendiente << 2) | (e.llenando << 3);
     }
     hi_paso(crudo, ahora) { return this.decidir(this.st, crudo, ahora, true); }
-    hi_reportar_plaga(t) { if (!this.st.plaga_pendiente) { this.st.plaga_pendiente = 1; this.emitir(4, t); } }
+    hi_reportar_plaga(t) { if (!this.st.plaga_pendiente) { this.st.plaga_pendiente = 1; this.st.ultimo_aviso = t; this.emitir(4, t); } }
     hi_autorizar(t) {
       const s = this.st;
       if (!s.plaga_pendiente) { this.emitir(8, t); return 0; }
       if (s.nivel_deposito < this.cfg.nivel_minimo) { this.emitir(7, t); return 0; }
-      s.plaga_pendiente = 0; s.pulverizando = 1; s.inicio_pulv = t; this.emitir(5, t); return 1;
+      s.plaga_pendiente = 0; s.pulverizando = 1; s.inicio_pulv = t; s.ultimo_aviso = t; this.emitir(5, t); return 1;
     }
-    hi_descartar(t) { if (this.st.plaga_pendiente) { this.st.plaga_pendiente = 0; this.emitir(9, t); } }
+    hi_descartar(t) { if (this.st.plaga_pendiente) { this.st.plaga_pendiente = 0; this.st.ultimo_aviso = t; this.emitir(9, t); } }
     hi_umbrales(r, p, m) {
       const c = this.cfg;
       c.umbral_riego = MotorJS.limitar(r, 5, 90);
@@ -99,22 +115,28 @@
     hi_simular(dtMs, sol, bomba) {
       const f = Math.fround;
       const dt = f(dtMs / 1000);
-      let agua = bomba;
-      if (bomba && this.tanque <= 0) {
-        agua = 0;
-        if (!this.vacioAvisado) { this.vacioAvisado = 1; this.emitir(10, this.reloj); }
-      }
+      const agua = bomba && this.tanque > 0;
       const evap = f(f(0.25) + f(sol * f(0.03)));
       let s = f(this.suelo - f(evap * dt));
       if (agua) {
         s = f(s + f(f(7) * dt));
-        this.tanque = f(this.tanque - f(f(0.04) * dt));
+        this.tanque = f(this.tanque - f(f(0.15) * dt));
       }
-      if (this.st.pulverizando) this.tanque = f(this.tanque - f(f(0.1) * dt));
+      if (this.st.pulverizando) this.tanque = f(this.tanque - f(f(0.3) * dt));
+      if (this.st.llenando) this.tanque = f(this.tanque + f(f(2) * dt));
       s = Math.min(100, Math.max(0, s));
       this.suelo = s;
       if (this.tanque < 0) this.tanque = 0;
+      if (this.tanque > 100) this.tanque = 100;
       this.st.nivel_deposito = Math.trunc(f(this.tanque + f(0.5)));
+      // Plaga: se extiende si no se trata; el pulverizador la combate
+      let p = this.plaga;
+      if (p > 0) p = f(p + f(f(0.3) * dt));
+      if (this.st.pulverizando) p = f(p - f(f(25) * dt));
+      if (p < 0) p = 0;
+      if (p > 100) p = 100;
+      this.plaga = p;
+      this.confianza = f(this.confianza + f(f(f(p - this.confianza) * f(0.6)) * dt));
       const objT = f(f(16) + f(sol * f(0.17)));
       const objA = f(f(80) - f(sol * f(0.45)));
       this.tempC = f(this.tempC + f(f(f(objT - this.tempC) * f(0.05)) * dt));
@@ -139,12 +161,11 @@
     hi_nivel_deposito(p) {
       this.st.nivel_deposito = MotorJS.limitar(p, 0, 100);
       this.tanque = Math.fround(this.st.nivel_deposito);
-      if (this.tanque > 0) this.vacioAvisado = 0;
     }
-    hi_lluvia(p) {
-      const f = Math.fround;
-      this.suelo = Math.min(100, f(this.suelo + p));
-    }
+    hi_lluvia(p) { this.suelo = Math.min(100, Math.fround(this.suelo + p)); }
+    hi_infestar(p) { this.plaga = Math.min(100, Math.fround(this.plaga + p)); }
+    hi_confianza() { return Math.trunc(Math.fround(this.confianza + Math.fround(0.5))); }
+    hi_plagas() { const f = Math.fround; return Math.trunc(f(f(this.plaga * f(0.12)) + f(0.99))); }
     hi_bench(n) {
       const e = this.estadoInicial();
       const rng = { s: 7 };
@@ -191,7 +212,7 @@
   const MUESTRA_MS = 300000;        // el ESP32 guarda una muestra cada 5 min
   const HIST5 = 13;                 // 13 muestras = la última hora
   const sim = {
-    t: 0, ciclos: 0, riegos: 0, bomba: 0, pulv: 0, plaga: 0,
+    t: 0, ciclos: 0, riegos: 0, bomba: 0, pulv: 0, plaga: 0, plagas: 0, confianza: 0, llenando: 0,
     crudo: 0, humedad: 0, suelo: 42, sol: 30, velocidad: 1,
     temp: 21, aire: 70, nivel: 80,
     hist: [], hist5: [], muestraNueva: false, silencio: false, acum: 0,
@@ -202,15 +223,15 @@
     1: ["Riego iniciado: la humedad bajó del umbral", "ev-riego"],
     2: ["Riego terminado: se alcanzó la humedad meta", "ev-ok"],
     3: ["Riego cortado por el tiempo máximo de seguridad", "ev-riego"],
-    4: ["Posible plaga detectada: esperando tu autorización", "ev-plaga"],
+    4: ["La cámara detectó una posible plaga: esperando tu autorización", "ev-plaga"],
     5: ["Pulverización autorizada e iniciada", "ev-plaga"],
     6: ["Pulverización terminada", "ev-ok"],
     7: ["Orden rechazada: depósito con menos de 10 %", "ev-bloqueo"],
     8: ["Autorización ignorada: no había plaga pendiente", "ev-bloqueo"],
     9: ["Aviso de plaga descartado por el usuario", "ev-ok"],
-    10: ["Depósito vacío: la bomba giró sin agua", "ev-bloqueo"],
+    10: ["Depósito casi vacío: se abre la válvula de llenado", "ev-riego"],
+    11: ["Depósito lleno: la válvula de llenado se cierra", "ev-ok"],
     100: ["Lluvia simulada: entró agua a la tierra", "ev-riego"],  // eventos de la demo, no del motor
-    101: ["Depósito rellenado al 100 %", "ev-ok"],
   };
 
   const fmt1 = (n) => n.toLocaleString("es-PE", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
@@ -237,6 +258,9 @@
     const est = M.hi_paso(sim.crudo, sim.t);
     if ((est & 1) && !sim.bomba) sim.riegos++;
     sim.bomba = est & 1;
+    sim.llenando = (est >> 3) & 1;
+    sim.confianza = M.hi_confianza();
+    sim.plagas = M.hi_plagas();
     sim.pulv = (est >> 1) & 1;
     sim.plaga = (est >> 2) & 1;
     sim.humedad = M.hi_humedad_calc();
@@ -291,7 +315,7 @@
       suelo: `${sim.humedad} %`,
       temp: `${fmt1(sim.temp)} °C`,
       aire: `${sim.aire} %`,
-      tank: `${sim.nivel} %`,
+      tank: sim.llenando ? `${sim.nivel} % ↑` : `${sim.nivel} %`,
     };
     $$("[data-v]").forEach((el) => { el.textContent = lect[el.dataset.v]; });
     const rp = $("#r-pump");
@@ -302,11 +326,15 @@
     $("#s-raw").textContent = `${sim.crudo}`;
     $("#s-irr").textContent = sim.riegos;
     $("#pest-card").hidden = !sim.plaga;
+    $("#cam-conf").textContent = `${sim.confianza} %`;
+    $("#cam-bar").style.width = `${sim.confianza}%`;
+    $("#cam-count").textContent = sim.plagas;
+    $("#cam-estado").textContent = sim.pulv ? "Pulverizando" : sim.plaga ? "Plaga detectada" : sim.confianza > 5 ? "Analizando…" : "Sin plagas";
 
     // Depósito: el nivel baja solo con el uso; el deslizador lo sigue (salvo que lo estés moviendo)
     const tank = $("#in-tank");
     if (document.activeElement !== tank && +tank.value !== sim.nivel) tank.value = sim.nivel;
-    $("#o-tank").textContent = `${sim.nivel} %`;
+    $("#o-tank").textContent = sim.llenando ? `${sim.nivel} % (llenando)` : `${sim.nivel} %`;
     $("#o-cm").textContent = `Sensor ultrasónico: ${fmt1(M.hi_distancia_x10() / 10)} cm hasta el agua`;
   }
 
@@ -494,7 +522,16 @@
       ctx.textAlign = "left";
       ctx.fillStyle = sim.nivel < 10 ? COL.alerta : COL.texto;
       ctx.font = "600 12px 'Chakra Petch', sans-serif";
-      ctx.fillText(`Depósito ${sim.nivel} %`, tx + tw + 10, ty + 18);
+      ctx.fillText(sim.llenando ? `Llenando… ${sim.nivel} %` : `Depósito ${sim.nivel} %`, tx + tw + 10, ty + 18);
+      if (sim.llenando) {                                         // válvula abierta y gotas cayendo
+        ctx.strokeStyle = COL.agua; ctx.lineWidth = 3;
+        ctx.beginPath(); ctx.moveTo(tx + 6, ty - 18); ctx.lineTo(tx + 6, ty - 4); ctx.stroke();
+        ctx.fillStyle = COL.agua;
+        for (let k = 0; k < 3; k++) {
+          const yy = ty - 18 + ((soil.ola * 18 + k * 6) % 18);
+          ctx.beginPath(); ctx.arc(tx + 6, yy, 2, 0, 6.3); ctx.fill();
+        }
+      }
       ctx.fillStyle = COL.dim;
       ctx.font = "11px 'JetBrains Mono', monospace";
       ctx.fillText(`${fmt1(M.hi_distancia_x10() / 10)} cm`, tx + tw + 10, ty + 34);
@@ -568,8 +605,27 @@
       ctx.quadraticCurveTo(lado * L * 0.5, -L * 0.42, lado * L, 0);
       ctx.quadraticCurveTo(lado * L * 0.5, L * 0.22, 0, 0);
       ctx.fill();
+      const bichos = Math.max(0, Math.min(3, sim.plagas - i * 3));   // plagas sobre la hoja
+      for (let b = 0; b < bichos; b++) {
+        const tt = 0.45 + b * 0.22;
+        ctx.fillStyle = sim.confianza >= 40 ? COL.sol : "#3a2a1a";
+        ctx.beginPath(); ctx.arc(lado * L * tt, -L * 0.1, 3, 0, 6.3); ctx.fill();
+      }
       ctx.restore();
     });
+    {                                                             // cámara en un poste, mirando a la planta
+      const cx = w * 0.84, cy = ground - h * 0.34;
+      ctx.strokeStyle = "#3a4a44"; ctx.lineWidth = 3;
+      ctx.beginPath(); ctx.moveTo(cx, ground); ctx.lineTo(cx, cy); ctx.stroke();
+      ctx.fillStyle = "#1c2a26"; ctx.strokeStyle = COL.clorofila; ctx.lineWidth = 1.5;
+      rectRedondo(ctx, cx - 14, cy - 8, 20, 14, 3); ctx.fill(); ctx.stroke();
+      ctx.fillStyle = sim.confianza >= 40 ? COL.alerta : COL.clorofila;
+      ctx.beginPath(); ctx.arc(cx - 9, cy - 1, 3, 0, 6.3); ctx.fill();
+      ctx.fillStyle = sim.confianza >= 40 ? "rgba(255,122,107,0.07)" : "rgba(180,240,110,0.06)";
+      ctx.beginPath(); ctx.moveTo(cx - 14, cy - 1); ctx.lineTo(px + 10, ground - h * 0.3); ctx.lineTo(px + 10, ground); ctx.closePath(); ctx.fill();
+      ctx.fillStyle = COL.dim; ctx.font = "10px 'JetBrains Mono', monospace"; ctx.textAlign = "center";
+      ctx.fillText("cámara", cx - 4, cy - 14);
+    }
 
     // Sensor capacitivo de suelo clavado en la tierra
     {
@@ -775,6 +831,80 @@
     ctx.beginPath(); ctx.arc(X(HIST5 - 1), Y(m[m.length - 1].s1), 4, 0, Math.PI * 2); ctx.fill();
   }
 
+
+  /* -------------------------------------------------------------------
+     3d. CÁMARA CON IA (vista térmica simulada)
+     ------------------------------------------------------------------- */
+  const cam = { cv: null, ctx: null, off: null, octx: null, visible: false, ult: 0, t: 0, lut: null };
+  function crearLut() {
+    const paradas = [[0, 0, 0, 20], [.12, 35, 0, 90], [.28, 110, 0, 140], [.45, 190, 30, 90], [.6, 235, 80, 30], [.78, 255, 170, 20], [.92, 255, 235, 120], [1, 255, 255, 235]];
+    const lut = new Uint8ClampedArray(256 * 3);
+    for (let i = 0; i < 256; i++) {
+      const v = i / 255;
+      let k = 1; while (k < paradas.length - 1 && paradas[k][0] < v) k++;
+      const a = paradas[k - 1], b = paradas[k], u = (v - a[0]) / (b[0] - a[0]);
+      for (let c = 0; c < 3; c++) lut[i * 3 + c] = a[c + 1] + (b[c + 1] - a[c + 1]) * u;
+    }
+    return lut;
+  }
+  function dibujarCamara(ahora) {
+    if (!cam.cv || !cam.visible || document.hidden) return;
+    if (ahora - cam.ult < 50) return;
+    const dt = (ahora - cam.ult) / 1000; cam.ult = ahora; cam.t += reduceMotion ? 0 : dt;
+    const N = 120, o = cam.octx;
+    // Escena en grises: más caliente = más claro
+    o.fillStyle = "#262626"; o.fillRect(0, 0, N, N);                       // aire
+    o.fillStyle = "#3a3a3a"; o.fillRect(0, N * 0.78, N, N * 0.22);           // tierra
+    const hum = Math.min(1, sim.suelo / 100);
+    o.fillStyle = `rgb(${40 + hum * 0}, ${40}, ${40})`;
+    o.strokeStyle = "#6a6a6a"; o.lineWidth = 3;
+    o.beginPath(); o.moveTo(N / 2, N * 0.8); o.lineTo(N / 2, N * 0.35); o.stroke();
+    const hojas = [[-1, .7], [1, .62], [-1, .5], [1, .42], [-1, .33]];
+    hojas.forEach(([lado, y], i) => {
+      const yy = N * y, L = N * (0.3 - i * 0.02);
+      o.fillStyle = "#7a7a7a";
+      o.beginPath(); o.moveTo(N / 2, yy);
+      o.quadraticCurveTo(N / 2 + lado * L * 0.5, yy - L * 0.4, N / 2 + lado * L, yy - L * 0.1);
+      o.quadraticCurveTo(N / 2 + lado * L * 0.5, yy + L * 0.15, N / 2, yy); o.fill();
+      o.strokeStyle = "#9a9a9a"; o.lineWidth = 1;
+      o.beginPath(); o.moveTo(N / 2, yy); o.lineTo(N / 2 + lado * L * 0.9, yy - L * 0.1); o.stroke();
+    });
+    const bichos = [];
+    for (let k = 0; k < sim.plagas; k++) {                                   // plagas: puntos calientes
+      const lado = k % 2 ? 1 : -1, hj = hojas[k % 5], L = N * (0.3 - (k % 5) * 0.02);
+      const tt = 0.3 + ((k * 37) % 55) / 100;
+      const x = N / 2 + lado * L * tt + Math.sin(cam.t * 3 + k) * 1.2, y = N * hj[1] - L * 0.12 * tt + Math.cos(cam.t * 2 + k);
+      o.fillStyle = "#f4f4f4"; o.beginPath(); o.arc(x, y, 3.2, 0, 6.3); o.fill();
+      bichos.push([x, y]);
+    }
+    if (sim.pulv) {                                                          // gotas frías
+      o.fillStyle = "#101010";
+      for (let k = 0; k < 40; k++) { o.beginPath(); o.arc(((k * 53 + cam.t * 40) % N), ((k * 29 + cam.t * 160) % N), 1.6, 0, 6.3); o.fill(); }
+    }
+    const img = o.getImageData(0, 0, N, N), d = img.data, lut = cam.lut;
+    for (let i = 0; i < d.length; i += 4) {
+      const g = Math.min(255, d[i] + (((i * 2654435761) >>> 24) & 7) - 3) * 3;   // grano del sensor
+      d[i] = lut[g < 0 ? 0 : g]; d[i + 1] = lut[(g < 0 ? 0 : g) + 1]; d[i + 2] = lut[(g < 0 ? 0 : g) + 2];
+    }
+    o.putImageData(img, 0, 0);
+    const c = cam.ctx, W = cam.w, H = cam.h;
+    c.imageSmoothingEnabled = true;
+    c.drawImage(cam.off, 0, 0, W, H);
+    const e = W / N;
+    c.font = "11px 'JetBrains Mono', monospace"; c.textAlign = "left";
+    if (sim.confianza >= 40) {
+      c.strokeStyle = COL.alerta; c.lineWidth = 1.5; c.fillStyle = COL.alerta;
+      bichos.forEach(([x, y]) => { c.strokeRect((x - 6) * e, (y - 6) * e, 12 * e, 12 * e); });
+      if (bichos.length) c.fillText(`plaga ${sim.confianza} %`, Math.max(4, (bichos[0][0] - 6) * e), Math.max(14, (bichos[0][1] - 9) * e));
+    }
+    c.fillStyle = "rgba(255,255,255,0.8)";
+    c.fillText("ESP32-CAM · OV2640 · 240×240", 8, 14);
+    if (Math.floor(cam.t * 1.5) % 2 === 0) { c.fillStyle = COL.alerta; c.beginPath(); c.arc(W - 14, 12, 4, 0, 6.3); c.fill(); }
+    const ly = (cam.t * 60) % H; c.fillStyle = "rgba(255,255,255,0.08)"; c.fillRect(0, ly, W, 2);
+    c.fillStyle = "rgba(255,255,255,0.85)";
+    c.fillText(sim.pulv ? "PULVERIZANDO" : sim.confianza >= 40 ? "PLAGA DETECTADA" : "ESCANEANDO", 8, H - 8);
+  }
+
   /* -------------------------------------------------------------------
      Bucle principal: un solo requestAnimationFrame para todo
      ------------------------------------------------------------------- */
@@ -792,6 +922,7 @@
       }
     }
     if (soil.visible && !document.hidden) dibujarHuerto(reduceMotion ? 0 : dt);
+    dibujarCamara(ahora);
     requestAnimationFrame(bucle);
   }
 
@@ -801,6 +932,10 @@
     chart.cv = $("#chart");
     Object.assign(chart, ajustarCanvas(chart.cv));
     dibujarGrafico();
+    cam.cv = $("#cam");
+    Object.assign(cam, ajustarCanvas(cam.cv));
+    cam.ctx = cam.cv.getContext("2d");
+    if (!cam.off) { cam.off = document.createElement("canvas"); cam.off.width = cam.off.height = 120; cam.octx = cam.off.getContext("2d", { willReadFrequently: true }); cam.lut = crearLut(); }
     hs.cv = $("#hist");
     Object.assign(hs, ajustarCanvas(hs.cv));
     dibujarHistorial();
@@ -841,14 +976,8 @@
       actualizarTextos();
       dibujarGrafico();
     });
-    $("#b-pest").addEventListener("click", () => { M.hi_reportar_plaga(sim.t); paso(); actualizarTextos(); });
+    $("#b-pest").addEventListener("click", () => { M.hi_infestar(55); paso(); actualizarTextos(); });
 
-    $("#b-fill").addEventListener("click", () => {
-      M.hi_nivel_deposito(100);
-      registrar(101, sim.t);
-      paso();
-      actualizarTextos();
-    });
     $("#b-avanzar").addEventListener("click", () => avanzar(30 * 60 * 1000));
     $("#b-auth").addEventListener("click", () => { M.hi_autorizar(sim.t); paso(); actualizarTextos(); });
     $("#b-dismiss").addEventListener("click", () => { M.hi_descartar(sim.t); paso(); actualizarTextos(); });
@@ -1072,6 +1201,7 @@
 
     const io = new IntersectionObserver((ents) => ents.forEach((en) => (soil.visible = en.isIntersecting)));
     io.observe(soil.cv);
+    new IntersectionObserver((ents) => ents.forEach((en) => (cam.visible = en.isIntersecting))).observe(cam.cv);
     let rz;
     window.addEventListener("resize", () => { clearTimeout(rz); rz = setTimeout(prepararCanvas, 120); });
     requestAnimationFrame(bucle);
