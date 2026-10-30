@@ -235,7 +235,7 @@
     5: ["Pulverización autorizada e iniciada", "ev-plaga"],
     6: ["Pulverización terminada", "ev-ok"],
     7: ["Orden rechazada: depósito con menos de 10 %", "ev-bloqueo"],
-    8: ["Autorización ignorada: no había plaga pendiente", "ev-bloqueo"],
+    8: ["No hay plagas que eliminar", "ev-bloqueo"],
     9: ["Aviso de plaga descartado por el usuario", "ev-ok"],
     10: ["Depósito casi vacío: se abre la válvula de llenado", "ev-riego"],
     11: ["Depósito lleno: la válvula de llenado se cierra", "ev-ok"],
@@ -337,7 +337,6 @@
     $("#cam-conf").textContent = `${sim.confianza} %`;
     $("#cam-bar").style.width = `${sim.confianza}%`;
     $("#cam-count").textContent = sim.plagas;
-    $("#b-kill").disabled = !(sim.plagas > 0 || sim.plaga) || !!sim.pulv;
     $("#cam-estado").textContent = sim.pulv ? "Pulverizando" : sim.plaga ? "Plaga detectada" : sim.confianza > 5 ? "Analizando…" : "Sin plagas";
 
     // Depósito: el nivel baja solo con el uso; el deslizador lo sigue (salvo que lo estés moviendo)
