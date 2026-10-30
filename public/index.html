@@ -1,0 +1,508 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#1F3B2C">
+<meta name="description" content="Monitorea y riega tu huerto desde el celular.">
+<title>Huerto Inteligente</title>
+<link rel="icon" href="/logo.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="/icon-192.png">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&family=Bricolage+Grotesque:opsz,wght@12..96,400..800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/app.css">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js" defer></script>
+<script src="/cerebro.js" defer></script>
+<script src="/app.js" defer></script>
+</head>
+<body class="fuera">
+
+<!-- ============ PANTALLA DE ARRANQUE ============ -->
+<div class="arranque" id="arranque">
+  <div class="arranque-planta" data-planta="splash"></div>
+  <p class="arranque-marca">Huerto Inteligente</p>
+  <span class="arranque-barra" role="progressbar" aria-label="Abriendo la app"><i></i></span>
+</div>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <symbol id="i-casa" viewBox="0 0 24 24"><path d="M3 11.5 12 4l9 7.5"/><path d="M5.5 10v9.5h13V10"/><path d="M10 19.5v-5h4v5"/></symbol>
+    <symbol id="i-graf" viewBox="0 0 24 24"><path d="M4 19.5h16"/><path d="M5 15l4.5-5 3.5 3 6-7"/><circle cx="19" cy="6" r="1.3"/></symbol>
+    <symbol id="i-cam" viewBox="0 0 24 24"><path d="M4 8h3l1.6-2.2h6.8L17 8h3v11H4z"/><circle cx="12" cy="13.3" r="3.6"/></symbol>
+    <symbol id="i-campana" viewBox="0 0 24 24"><path d="M6 16.5V11a6 6 0 0 1 12 0v5.5l1.5 2h-15z"/><path d="M10 20.5a2.2 2.2 0 0 0 4 0"/></symbol>
+    <symbol id="i-libro" viewBox="0 0 24 24"><path d="M4 5.5c3-1.3 5.6-1.3 8 .8 2.4-2.1 5-2.1 8-.8v13c-3-1.3-5.6-1.3-8 .8-2.4-2.1-5-2.1-8-.8z"/><path d="M12 6.3v13"/></symbol>
+    <symbol id="i-gota" viewBox="0 0 24 24"><path d="M12 3.5s-6 6.6-6 10.9a6 6 0 0 0 12 0C18 10.1 12 3.5 12 3.5z"/></symbol>
+    <symbol id="i-termo" viewBox="0 0 24 24"><path d="M10 14.2V5a2 2 0 0 1 4 0v9.2a4 4 0 1 1-4 0z"/><path d="M12 9v7"/></symbol>
+    <symbol id="i-viento" viewBox="0 0 24 24"><path d="M3 9h11a2.5 2.5 0 1 0-2.5-2.5"/><path d="M3 13h15a2.5 2.5 0 1 1-2.5 2.5"/><path d="M3 17h6"/></symbol>
+    <symbol id="i-tanque" viewBox="0 0 24 24"><rect x="5" y="4" width="14" height="16" rx="2.5"/><path d="M5 12c2.3-1.4 4.7 1.4 7 0s4.7 1.4 7 0"/></symbol>
+    <symbol id="i-hoja" viewBox="0 0 24 24"><path d="M5 19c0-8 5-13 14-14 0 9-5 14-13 14z"/><path d="M5 19 13 11"/></symbol>
+    <symbol id="i-salir" viewBox="0 0 24 24"><path d="M14 4h5v16h-5"/><path d="M10 8l-4 4 4 4"/><path d="M6 12h10"/></symbol>
+    <symbol id="i-enviar" viewBox="0 0 24 24"><path d="M4 12 20 4l-5 16-3-7z"/><path d="m12 13 8-9"/></symbol>
+    <symbol id="i-recargar" viewBox="0 0 24 24"><path d="M19 12a7 7 0 1 1-2.1-5"/><path d="M19 4.5V8h-3.5"/></symbol>
+    <symbol id="i-ampliar" viewBox="0 0 24 24"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></symbol>
+    <symbol id="i-bajar" viewBox="0 0 24 24"><path d="M12 4v11"/><path d="m7 10.5 5 5 5-5"/><path d="M5 20h14"/></symbol>
+    <symbol id="i-bicho" viewBox="0 0 24 24"><ellipse cx="12" cy="13.5" rx="4.5" ry="6"/><path d="M12 7.5V19.5M9 5l1.4 2M15 5l-1.4 2M7.5 11 4 9.5M16.5 11 20 9.5M7.5 15H4M16.5 15H20M8 18.5 5.5 20.5M16 18.5l2.5 2"/></symbol>
+    <symbol id="i-cerrar" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></symbol>
+    <symbol id="i-chispa" viewBox="0 0 24 24"><path d="M12 3.5 13.8 10 20.5 12l-6.7 2L12 20.5 10.2 14 3.5 12l6.7-2z"/></symbol>
+    <symbol id="i-sol" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2.5v2.5M12 19v2.5M2.5 12H5M19 12h2.5M5.3 5.3 7 7M17 17l1.7 1.7M5.3 18.7 7 17M17 7l1.7-1.7"/></symbol>
+    <symbol id="i-play" viewBox="0 0 24 24"><path d="M8 5.5v13l10-6.5z"/></symbol>
+  </defs>
+</svg>
+
+<!-- ============ ACCESO ============ -->
+<div id="login" class="acceso">
+  <div class="acceso-arte">
+    <div class="acceso-planta" data-planta="login"></div>
+    <h1 class="acceso-marca">Huerto<br>Inteligente</h1>
+    <p class="acceso-lema">Mira cómo están tus plantas, riégalas desde el celular y entérate al momento si algo les pasa.</p>
+    <ul class="acceso-lista">
+      <li><svg><use href="#i-gota"/></svg>Humedad, temperatura y agua del tanque en vivo</li>
+      <li><svg><use href="#i-hoja"/></svg>Riego con un toque y apagado automático</li>
+      <li><svg><use href="#i-bicho"/></svg>Avisos de plagas con la cámara</li>
+      <li><svg><use href="#i-chispa"/></svg>Brote, un asistente que responde tus dudas</li>
+    </ul>
+  </div>
+  <div class="acceso-form">
+    <div class="tarjeta-form">
+      <h2 id="lTitulo">Entra a tu huerto</h2>
+      <div class="segmento" role="tablist">
+        <button type="button" id="tEntrar" class="act" role="tab">Entrar</button>
+        <button type="button" id="tCrear" role="tab">Crear cuenta</button>
+      </div>
+      <form id="lform" autocomplete="on">
+        <label for="luser">Usuario</label>
+        <input id="luser" autocomplete="username" required minlength="3" maxlength="30" autocapitalize="none" spellcheck="false">
+        <label for="lclave">Contraseña</label>
+        <div class="campo-clave">
+          <input id="lclave" type="password" autocomplete="current-password" required minlength="8">
+          <button type="button" class="ver-clave" id="verClave" aria-label="Mostrar contraseña">Ver</button>
+        </div>
+        <div id="fCodigo" hidden>
+          <label for="lcodigo">Código de instalación</label>
+          <input id="lcodigo" type="password" autocomplete="off">
+          <p class="ayuda">Es la misma API_KEY que pusiste en Vercel y en el ESP32.</p>
+        </div>
+        <button id="lbtn" type="submit" class="btn-principal ancho">Entrar</button>
+      </form>
+      <p class="msg-error" id="lmsg" role="alert"></p>
+    </div>
+  </div>
+</div>
+
+<!-- ============ APLICACIÓN ============ -->
+<div id="app" class="app">
+  <aside class="riel">
+    <div class="riel-marca"><span class="mini-logo" data-planta="mini"></span><b>Huerto<br>Inteligente</b></div>
+    <nav class="riel-nav">
+      <button data-ir="inicio" class="act"><svg><use href="#i-casa"/></svg>Inicio</button>
+      <button data-ir="graficos"><svg><use href="#i-graf"/></svg>Gráficos</button>
+      <button data-ir="camara"><svg><use href="#i-cam"/></svg>Cámara</button>
+      <button data-ir="alertas"><svg><use href="#i-campana"/></svg>Avisos<span class="burbuja" data-cuenta hidden>0</span></button>
+      <button data-ir="guia"><svg><use href="#i-libro"/></svg>Guía</button>
+    </nav>
+    <div class="riel-extra">
+      <article class="riel-estado">
+        <div class="re-cab">
+          <span class="anillo mini" id="reAnillo">
+            <svg viewBox="0 0 44 44"><circle cx="22" cy="22" r="18" class="pista"/><circle cx="22" cy="22" r="18" class="valor" pathLength="100"/></svg>
+            <b id="reSalud">--</b>
+          </span>
+          <div><b>Salud del huerto</b><span id="reVisto">Sin lecturas</span></div>
+        </div>
+        <ul class="re-barras">
+          <li data-re="suelo"><span>Tierra</span><i><u></u></i><b>--</b></li>
+          <li data-re="temp"><span>Temperatura</span><i><u></u></i><b>--</b></li>
+          <li data-re="tank"><span>Tanque</span><i><u></u></i><b>--</b></li>
+        </ul>
+      </article>
+
+      <article class="riel-bomba" id="reBomba">
+        <span class="rb-punto"></span>
+        <div><b id="reBombaTxt">Bomba apagada</b><span id="reBombaSub">Último riego: —</span></div>
+      </article>
+
+      <button class="riel-brote" data-preguntar="¿Debo regar hoy?">
+        <span class="rb-planta" data-planta="mini"></span>
+        <b>¿Tienes dudas?</b>
+        <span>Pregúntale a Brote</span>
+      </button>
+
+      <article class="riel-tip">
+        <svg><use href="#i-sol"/></svg>
+        <div><b>Otro consejo</b><p id="reTip"></p></div>
+      </article>
+    </div>
+
+    <div class="riel-pie">
+      <span class="quien"><span class="avatar" data-inicial>?</span><span data-usuario></span></span>
+      <button class="btn-texto" data-salir><svg><use href="#i-salir"/></svg>Salir</button>
+    </div>
+  </aside>
+
+  <div class="principal">
+    <header class="barra">
+      <div class="barra-marca"><span class="mini-logo" data-planta="mini"></span><b>Huerto Inteligente</b></div>
+      <div class="pastilla" id="conn"><span class="punto"></span><span id="connTxt">Conectando…</span></div>
+      <button class="icono-btn" id="campana" data-ir="alertas" aria-label="Avisos"><svg><use href="#i-campana"/></svg><span class="burbuja" data-cuenta hidden>0</span></button>
+      <button class="icono-btn solo-movil" data-salir aria-label="Salir"><svg><use href="#i-salir"/></svg></button>
+    </header>
+
+    <main id="vistas">
+      <!-- INICIO -->
+      <section class="vista act" id="v-inicio">
+        <div class="hero">
+          <div class="hero-planta" data-planta="hero"></div>
+          <div class="hero-texto">
+            <p class="saludo" id="saludo">Hola</p>
+            <h1 id="titular">Revisando tu huerto…</h1>
+            <p class="resumen" id="resumen">Esperando la primera lectura del ESP32.</p>
+            <div class="hero-meta">
+              <div class="anillo" id="anilloSalud">
+                <svg viewBox="0 0 44 44"><circle cx="22" cy="22" r="18" class="pista"/><circle cx="22" cy="22" r="18" class="valor" pathLength="100"/></svg>
+                <b id="saludNum">--</b>
+              </div>
+              <div class="hero-meta-txt"><b>Salud del huerto</b><span id="visto">Sin lecturas todavía</span></div>
+            </div>
+          </div>
+        </div>
+
+        <article class="primeros-pasos" id="primerosPasos" hidden>
+          <div class="pp-cab">
+            <span class="panel-ico"><svg><use href="#i-hoja"/></svg></span>
+            <div><h3>Primeros pasos</h3><p class="nota">Se cierra solo cuando llegue la primera lectura.</p></div>
+            <b id="ppCuenta">0 de 4</b>
+          </div>
+          <span class="pp-barra"><i id="ppBarra"></i></span>
+          <ol class="pp-lista" id="ppLista"></ol>
+        </article>
+
+        <div class="resumen-hoy" id="resumenHoy">
+          <article style="--c:var(--brote)">
+            <span class="rh-ico"><svg><use href="#i-gota"/></svg></span>
+            <b data-r="riegos">0</b><small>Riegos de hoy</small>
+          </article>
+          <article style="--c:var(--lluvia)">
+            <span class="rh-ico"><svg><use href="#i-tanque"/></svg></span>
+            <b data-r="tiempo">0</b><small>Tiempo regando</small>
+          </article>
+          <article style="--c:var(--naranja)">
+            <span class="rh-ico"><svg><use href="#i-campana"/></svg></span>
+            <b data-r="avisos">0</b><small>Avisos de hoy</small>
+          </article>
+          <article style="--c:var(--violeta)">
+            <span class="rh-ico"><svg><use href="#i-graf"/></svg></span>
+            <b data-r="lecturas">0</b><small>Lecturas, 2 h</small>
+          </article>
+        </div>
+
+        <div class="tablero" id="tablero">
+          <article class="celda c-tanque" data-k="tank_pct">
+            <h3><svg><use href="#i-tanque"/></svg>Tanque de agua</h3>
+            <div class="tanque">
+              <svg viewBox="0 0 120 200" preserveAspectRatio="none" aria-hidden="true">
+                <defs><clipPath id="clipTanque"><rect x="4" y="4" width="112" height="192" rx="18"/></clipPath></defs>
+                <g clip-path="url(#clipTanque)">
+                  <g class="agua" id="agua">
+                    <path class="ola o2" d="M0 10 Q 15 0 30 10 T 60 10 T 90 10 T 120 10 T 150 10 T 180 10 T 210 10 T 240 10 V 400 H 0 Z"/>
+                    <path class="ola o1" d="M0 10 Q 15 20 30 10 T 60 10 T 90 10 T 120 10 T 150 10 T 180 10 T 210 10 T 240 10 V 400 H 0 Z"/>
+                  </g>
+                </g>
+                <rect x="4" y="4" width="112" height="192" rx="18" class="vidrio"/>
+                <path class="marcas" d="M98 52h12M98 100h14M98 148h12"/>
+              </svg>
+              <div class="tanque-num"><b data-v>--</b><small>%</small></div>
+            </div>
+            <p class="estado" data-e>—</p>
+          </article>
+
+          <article class="celda" data-k="soil1_pct">
+            <h3><svg><use href="#i-gota"/></svg>Suelo, zona 1</h3>
+            <div class="lectura"><b data-v>--</b><small>%</small></div>
+            <div class="regla"><span class="zona-ideal" style="left:45%;width:35%"></span><i data-m></i></div>
+            <p class="estado" data-e>—</p>
+            <svg class="spark" viewBox="0 0 100 24" preserveAspectRatio="none"><polyline data-s/></svg>
+          </article>
+
+          <article class="celda" data-k="soil2_pct">
+            <h3><svg><use href="#i-gota"/></svg>Suelo, zona 2</h3>
+            <div class="lectura"><b data-v>--</b><small>%</small></div>
+            <div class="regla"><span class="zona-ideal" style="left:45%;width:35%"></span><i data-m></i></div>
+            <p class="estado" data-e>—</p>
+            <svg class="spark" viewBox="0 0 100 24" preserveAspectRatio="none"><polyline data-s/></svg>
+          </article>
+
+          <article class="celda" data-k="temp">
+            <h3><svg><use href="#i-termo"/></svg>Temperatura</h3>
+            <div class="lectura"><b data-v>--</b><small>°C</small></div>
+            <div class="regla calor"><span class="zona-ideal" style="left:40%;width:26.7%"></span><i data-m></i></div>
+            <p class="estado" data-e>—</p>
+            <svg class="spark" viewBox="0 0 100 24" preserveAspectRatio="none"><polyline data-s/></svg>
+          </article>
+
+          <article class="celda" data-k="hum">
+            <h3><svg><use href="#i-viento"/></svg>Humedad del aire</h3>
+            <div class="lectura"><b data-v>--</b><small>%</small></div>
+            <div class="regla"><span class="zona-ideal" style="left:40%;width:40%"></span><i data-m></i></div>
+            <p class="estado" data-e>—</p>
+            <svg class="spark" viewBox="0 0 100 24" preserveAspectRatio="none"><polyline data-s/></svg>
+          </article>
+        </div>
+
+        <div class="fila-baja">
+          <article class="bomba" id="cBomba">
+            <div class="bomba-alto">
+              <div class="bomba-texto">
+                <h3>Bomba de riego</h3>
+                <p class="bomba-estado" id="ps">Apagada</p>
+                <p class="bomba-info" id="pinfo">Se apaga sola al cumplirse el tiempo</p>
+                <p class="bomba-msg" id="pmsg" role="status"></p>
+              </div>
+              <button class="boton-riego" id="pbtn" disabled>
+                <svg class="cuenta-atras" viewBox="0 0 120 120"><circle cx="60" cy="60" r="54" pathLength="100"/></svg>
+                <span class="onda"></span><span class="onda o2"></span>
+                <svg class="ico"><use href="#i-gota"/></svg>
+                <span id="pbtnTxt">Regar ahora</span>
+              </button>
+            </div>
+            <div class="bomba-ajuste">
+              <label for="pSecs">Duración del riego <b id="pSecsTxt">30 s</b></label>
+              <input type="range" id="pSecs" min="5" max="180" step="5" value="30">
+              <div class="bomba-marcas"><span>5 s</span><span>1 min 30 s</span><span>3 min</span></div>
+              <p class="bomba-nota" id="pSecsMsg">El propio ESP32 apaga la bomba al cumplirse el tiempo.</p>
+            </div>
+
+            <div class="bomba-pantalla">
+              <label class="interruptor"><input type="checkbox" id="optPantalla"><span></span>No apagar la pantalla</label>
+              <select id="pantallaMin" aria-label="Durante cuánto tiempo">
+                <option value="10">10 min</option>
+                <option value="30" selected>30 min</option>
+                <option value="60">1 hora</option>
+                <option value="0">Sin límite</option>
+              </select>
+              <p class="bomba-nota" id="pantallaMsg">Útil mientras riegas y miras la app desde el huerto.</p>
+            </div>
+
+            <dl class="bomba-pie">
+              <div><dt>Último riego</dt><dd id="pUlt">—</dd></div>
+              <div><dt>Tanque</dt><dd id="pTanque">—</dd></div>
+            </dl>
+          </article>
+
+          <article class="actividad">
+            <div class="actividad-cab">
+              <span class="panel-ico"><svg><use href="#i-campana"/></svg></span>
+              <div><h3>Actividad reciente</h3><p class="nota">Riegos y avisos, lo último arriba.</p></div>
+              <button class="btn-texto" data-ir="alertas">Ver todo</button>
+            </div>
+            <ol class="linea-tiempo" id="actividad"></ol>
+          </article>
+        </div>
+
+        <article class="consejo">
+          <svg class="consejo-ico"><use href="#i-sol"/></svg>
+          <div><h3>Consejo de hoy</h3><p id="consejo"></p></div>
+          <button class="btn-suave" data-preguntar="¿Qué puedes hacer?">Pregúntale a Brote</button>
+        </article>
+
+        <article class="semana">
+          <div class="actividad-cab">
+            <span class="panel-ico"><svg><use href="#i-graf"/></svg></span>
+            <div><h3>Cómo fue la semana</h3><p class="nota">Humedad de la tierra, del mínimo al máximo de cada día. La raya marca el promedio.</p></div>
+            <button class="btn-texto" data-ir="graficos">Ver gráficos</button>
+          </div>
+          <div class="sem-barras" id="semBarras"></div>
+          <p class="sem-pie" id="semPie">Todavía no hay días guardados.</p>
+        </article>
+
+        <nav class="atajos" aria-label="Accesos rápidos">
+          <button data-ir="graficos">
+            <span class="panel-ico"><svg><use href="#i-graf"/></svg></span>
+            <b>Gráficos e historial</b><span>Mira cómo cambió todo y descárgalo en Excel</span>
+          </button>
+          <button data-ir="camara">
+            <span class="panel-ico"><svg><use href="#i-cam"/></svg></span>
+            <b>Cámara</b><span>Ve el huerto y busca plagas en la foto</span>
+          </button>
+          <button data-ir="alertas">
+            <span class="panel-ico"><svg><use href="#i-campana"/></svg></span>
+            <b>Avisos</b><span>Activa las notificaciones en este dispositivo</span>
+          </button>
+          <button data-ir="guia">
+            <span class="panel-ico"><svg><use href="#i-libro"/></svg></span>
+            <b>Guía de uso</b><span>Seis pasos y las preguntas más frecuentes</span>
+          </button>
+        </nav>
+      </section>
+
+      <!-- GRÁFICOS -->
+      <section class="vista" id="v-graficos">
+        <header class="vista-cab"><h1>Gráficos e historial</h1><p>Cómo se mueve tu huerto ahora y cómo le fue los días anteriores.</p></header>
+
+        <article class="grafico">
+          <header>
+            <div><h2>En vivo</h2><p class="nota"><span class="latido"></span><span id="nVivo">Se actualiza con cada lectura del ESP32</span></p></div>
+            <div class="chips" id="chipsVivo"></div>
+          </header>
+          <div class="lienzo"><canvas id="gVivo" aria-label="Gráfico en vivo de los sensores"></canvas><p class="lienzo-vacio" id="vacioVivo" hidden></p></div>
+        </article>
+
+        <article class="grafico">
+          <header>
+            <div><h2>Resumen por día</h2><p class="nota">La barra va del mínimo al máximo del día; la línea es el promedio.</p></div>
+            <div class="controles">
+              <select id="selMetrica" aria-label="Qué medir"></select>
+              <div class="segmento chico" id="segDias"><button data-d="7" class="act">7 días</button><button data-d="14">14</button><button data-d="30">30</button></div>
+            </div>
+          </header>
+          <div class="lienzo"><canvas id="gDias" aria-label="Gráfico estadístico por día"></canvas><p class="lienzo-vacio" id="vacioDias" hidden></p></div>
+          <dl class="cifras" id="cifras">
+            <div><dt>Promedio</dt><dd data-c="avg">--</dd></div>
+            <div><dt>Mínimo</dt><dd data-c="min">--</dd></div>
+            <div><dt>Máximo</dt><dd data-c="max">--</dd></div>
+            <div><dt>Frente al día anterior</dt><dd data-c="tend">--</dd></div>
+          </dl>
+        </article>
+
+        <article class="grafico">
+          <header>
+            <div><h2>Historial</h2><p class="nota">Un registro cada 5 minutos, los más recientes arriba.</p></div>
+            <button class="btn-suave" id="btnCsv"><svg><use href="#i-bajar"/></svg>Descargar CSV</button>
+          </header>
+          <div class="tabla-scroll">
+            <table class="tabla"><thead><tr><th>Fecha y hora</th><th>Zona 1</th><th>Zona 2</th><th>Temp.</th><th>Aire</th><th>Tanque</th></tr></thead><tbody id="tablaHist"></tbody></table>
+          </div>
+        </article>
+      </section>
+
+      <!-- CÁMARA -->
+      <section class="vista" id="v-camara">
+        <header class="vista-cab"><h1>Cámara</h1><p>Mira el huerto cuando quieras y busca plagas en la foto.</p></header>
+        <article class="camara">
+          <div class="visor" id="visor">
+            <img id="camImg" alt="Última foto del huerto" hidden>
+            <div class="sin-senal" id="sinSenal">
+              <svg><use href="#i-cam"/></svg>
+              <b>La cámara aún no está conectada</b>
+              <span>Cuando subas el código a la ESP32-CAM, las fotos aparecerán aquí solas.</span>
+            </div>
+            <span class="esquina e1"></span><span class="esquina e2"></span><span class="esquina e3"></span><span class="esquina e4"></span>
+            <span class="escaneo" id="escaneo"></span>
+            <span class="sello" id="camSello" hidden><span class="punto"></span><span id="camHora">--</span></span>
+          </div>
+          <div class="cam-acciones">
+            <button class="btn-suave" id="camRefrescar"><svg><use href="#i-recargar"/></svg>Actualizar</button>
+            <button class="btn-suave" id="camAmpliar"><svg><use href="#i-ampliar"/></svg>Pantalla completa</button>
+            <button class="btn-suave" id="camBajar"><svg><use href="#i-bajar"/></svg>Guardar foto</button>
+            <button class="btn-principal" id="camAnalizar"><svg><use href="#i-bicho"/></svg>Buscar plagas</button>
+          </div>
+          <p class="nota" id="camEstado">Esperando la primera foto.</p>
+          <div class="analisis" id="analisis" hidden></div>
+        </article>
+
+        <article class="pasos-cam">
+          <h2>Conectar la ESP32-CAM</h2>
+          <ol>
+            <li>Abre <code>camara_esp32cam.ino</code> en Arduino IDE.</li>
+            <li>Escribe tu WiFi y la misma <code>API_KEY</code> del huerto. La dirección de la app ya viene puesta.</li>
+            <li>Elige la placa <b>AI Thinker ESP32-CAM</b> y súbelo con el adaptador USB.</li>
+            <li>Abre el Monitor Serie: debe decir «Foto subida». La imagen aparecerá aquí en segundos.</li>
+          </ol>
+          <p class="nota">Para que «Buscar plagas» use inteligencia artificial, agrega en Vercel la variable <code>GEMINI_API_KEY</code> (es gratis en Google AI Studio).</p>
+        </article>
+      </section>
+
+      <!-- AVISOS -->
+      <section class="vista" id="v-alertas">
+        <header class="vista-cab"><h1>Avisos</h1><p>Plagas, tanque bajo, tierra seca, calor y cada riego, en orden.</p></header>
+        <div class="ajustes">
+          <label class="interruptor"><input type="checkbox" id="optNotif"><span></span>Notificaciones en este dispositivo</label>
+          <label class="interruptor"><input type="checkbox" id="optSonido" checked><span></span>Sonido para plagas</label>
+          <span class="ajustes-acciones">
+            <button class="btn-texto" id="probarAlerta">Probar un aviso de plaga</button>
+            <button class="btn-texto" id="marcarLeidas">Marcar todo como leído</button>
+          </span>
+        </div>
+        <div class="chips" id="filtros">
+          <button class="chip act" data-f="">Todos</button><button class="chip" data-f="plaga">Plagas</button>
+          <button class="chip" data-f="agua">Agua y suelo</button><button class="chip" data-f="riego">Riegos</button><button class="chip" data-f="sistema">Sistema</button>
+        </div>
+        <ul class="lista-avisos" id="listaAvisos"></ul>
+      </section>
+
+      <!-- GUÍA -->
+      <section class="vista" id="v-guia">
+        <header class="vista-cab"><h1>Guía de uso</h1><p>Todo lo que necesitas para usar el huerto, en seis pasos.</p></header>
+        <button class="btn-principal grande" id="btnTour"><svg><use href="#i-play"/></svg>Hacer el recorrido guiado</button>
+        <ol class="pasos-guia">
+          <li><h3>Enciende el ESP32</h3><p>Conéctalo y espera a que diga «WiFi OK» en el Monitor Serie. Arriba verás <b>ESP32 en línea</b> en verde.</p></li>
+          <li><h3>Lee tu huerto en Inicio</h3><p>La planta grande refleja cómo está todo: se marchita si la tierra se seca y gotea cuando riegas. Debajo están los cinco sensores, con su zona ideal sombreada.</p></li>
+          <li><h3>Riega con un toque</h3><p>Pulsa <b>Regar ahora</b>. El ESP32 recibe la orden en unos segundos. Con el deslizador <b>Duración del riego</b> eliges cuánto dura, de 5 segundos a 3 minutos, y el propio ESP32 apaga la bomba al cumplirse el tiempo.</p></li>
+          <li><h3>Revisa los gráficos</h3><p><b>En vivo</b> muestra las últimas lecturas; <b>Resumen por día</b> compara promedio, mínimo y máximo. El historial se descarga en CSV para Excel.</p></li>
+          <li><h3>Activa los avisos</h3><p>En <b>Avisos</b> activa las notificaciones. Te avisamos si hay plaga, poca agua, tierra seca o mucho calor.</p></li>
+          <li><h3>Pregúntale a Brote</h3><p>El botón redondo de abajo a la derecha abre el asistente. Pregunta «¿debo regar?», «tengo pulgones» o «la temperatura no marca».</p></li>
+        </ol>
+        <h2 class="sub-guia">Preguntas frecuentes</h2>
+        <div class="faq">
+          <details><summary>La temperatura o el tanque salen con «—»</summary><p>Ese sensor no está dando lectura. Suele ser el cable o la alimentación. Pregúntale a Brote «la temperatura no marca» o «el tanque no marca» y te dice qué revisar.</p></details>
+          <details><summary>El suelo marca siempre 100 %</summary><p>El sensor necesita calibrarse: anota el valor en seco y dentro de agua en el Monitor Serie y ponlos en <code>SOIL1_SECO</code> y <code>SOIL1_HUMEDO</code>.</p></details>
+          <details><summary>Pulso «Regar ahora» y no pasa nada</summary><p>El botón solo funciona con el ESP32 en línea. Si está en línea, revisa el relé en el GPIO 23 y la fuente de la bomba.</p></details>
+          <details><summary>¿Cada cuánto se guarda el historial?</summary><p>El ESP32 guarda un registro cada 5 minutos; el resumen por día los agrupa con la hora de Lima.</p></details>
+          <details><summary>¿Cómo instalo la app en el celular?</summary><p>En Android abre el menú de Chrome y elige «Agregar a la pantalla principal». En iPhone usa Compartir y luego «Agregar a inicio».</p></details>
+          <details><summary>¿Cómo creo una cuenta para otra persona?</summary><p>Sal de tu sesión, elige «Crear cuenta» y usa el código de instalación (la API_KEY). Sin ese código nadie puede registrarse.</p></details>
+        </div>
+      </section>
+    </main>
+
+    <nav class="tabbar">
+      <button data-ir="inicio" class="act"><svg><use href="#i-casa"/></svg>Inicio</button>
+      <button data-ir="graficos"><svg><use href="#i-graf"/></svg>Gráficos</button>
+      <button data-ir="camara"><svg><use href="#i-cam"/></svg>Cámara</button>
+      <button data-ir="alertas"><svg><use href="#i-campana"/></svg>Avisos<span class="burbuja" data-cuenta hidden>0</span></button>
+      <button data-ir="guia"><svg><use href="#i-libro"/></svg>Guía</button>
+    </nav>
+  </div>
+
+  <button class="bot-fab" id="botBtn" aria-label="Abrir el asistente Brote"><span data-planta="mini"></span></button>
+  <section class="chat" id="chat" aria-label="Asistente Brote" hidden>
+    <header class="chat-cab">
+      <span class="chat-avatar" data-planta="mini"></span>
+      <div><b>Brote</b><span id="botModo">Asistente del huerto</span></div>
+      <button class="icono-btn" id="chatCerrar" aria-label="Cerrar"><svg><use href="#i-cerrar"/></svg></button>
+    </header>
+    <div class="chat-msgs" id="chatMsgs" aria-live="polite"></div>
+    <div class="chat-chips" id="chatChips"></div>
+    <form class="chat-form" id="chatForm">
+      <input id="chatInput" placeholder="Pregúntame algo del huerto…" autocomplete="off" maxlength="500">
+      <button aria-label="Enviar"><svg><use href="#i-enviar"/></svg></button>
+    </form>
+  </section>
+</div>
+
+<div class="tostadas" id="tostadas" aria-live="polite"></div>
+
+<div class="tour" id="tour" hidden>
+  <div class="tour-foco" id="tourFoco"></div>
+  <div class="tour-caja" id="tourCaja" role="dialog" aria-modal="true" aria-labelledby="tourTit">
+    <p class="tour-paso" id="tourPaso"></p>
+    <h3 id="tourTit"></h3>
+    <p id="tourTxt"></p>
+    <div class="tour-botones"><button class="btn-texto" id="tourSaltar">Saltar</button><span></span><button class="btn-texto" id="tourAtras">Atrás</button><button class="btn-principal" id="tourSig">Siguiente</button></div>
+  </div>
+</div>
+
+<div class="modal-plaga" id="modalPlaga" hidden>
+  <div class="modal-caja" role="alertdialog" aria-modal="true" aria-labelledby="mpTit">
+    <div class="modal-ico"><svg><use href="#i-bicho"/></svg></div>
+    <h2 id="mpTit">Posible plaga detectada</h2>
+    <p id="mpTxt"></p>
+    <div class="modal-botones">
+      <button class="btn-suave" id="mpCam">Ver cámara</button>
+      <button class="btn-suave" id="mpBot">¿Qué hago?</button>
+      <button class="btn-principal" id="mpOk">Entendido</button>
+    </div>
+  </div>
+</div>
+</body>
+</html>
