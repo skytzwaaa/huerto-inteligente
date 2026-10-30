@@ -132,7 +132,7 @@
       // Plaga: se extiende si no se trata; el pulverizador la combate
       let p = this.plaga;
       if (p > 0) p = f(p + f(f(0.3) * dt));
-      if (this.st.pulverizando) p = f(p - f(f(25) * dt));
+      if (this.st.pulverizando) p = f(p - f(f(40) * dt));
       if (p < 0) p = 0;
       if (p > 100) p = 100;
       this.plaga = p;

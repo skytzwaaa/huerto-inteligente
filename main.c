@@ -286,7 +286,7 @@ int hi_simular(int dt_ms, int sol, int bomba) {
 
     /* Plaga: si no se trata se va extendiendo; el pulverizador la combate */
     if (plaga > 0.0f) plaga += 0.3f * dt;
-    if (st.pulverizando) plaga -= 25.0f * dt;
+    if (st.pulverizando) plaga -= 40.0f * dt;
     if (plaga < 0.0f) plaga = 0.0f;
     if (plaga > 100.0f) plaga = 100.0f;
     confianza += (plaga - confianza) * 0.6f * dt;         /* la IA tarda un par de segundos en reconocerla */
