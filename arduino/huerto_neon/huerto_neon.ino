@@ -6,10 +6,10 @@
 #include <DHT.h>
 
 // ---------- WiFi y API (Vercel + Neon) ----------
-const char* WIFI_SSID = "TU_WIFI";
-const char* WIFI_PASS = "TU_CLAVE";
+const char* WIFI_SSID = "iPhone";
+const char* WIFI_PASS = "12345678";
 const char* DB_URL    = "https://huerto-inteligente-psi.vercel.app/api";   // sin "/" al final
-const char* API_KEY   = "tu-clave-secreta";                      // igual que API_KEY en Vercel
+const char* API_KEY   = "huerto123456";                          // igual que API_KEY en Vercel
 
 // ---------- Pines ----------
 #define PIN_SOIL1   34
@@ -58,12 +58,14 @@ bool dbEnviarResp(const char* metodo, const String& ruta, const String& cuerpo, 
   WiFiClientSecure client;
   client.setInsecure();                       // prototipo: no valida el certificado
   HTTPClient http;
-  http.setTimeout(5000);
-  if (!http.begin(client, String(DB_URL) + ruta)) return false;
+  http.setTimeout(12000);
+  http.setConnectTimeout(12000);
+  if (!http.begin(client, String(DB_URL) + ruta)) { Serial.println("No se pudo abrir la direccion"); return false; }
   http.addHeader("Content-Type", "application/json");
   http.addHeader("x-api-key", API_KEY);
   int code = http.sendRequest(metodo, cuerpo);
   if (code > 0) resp = http.getString();
+  if (code < 200 || code >= 300) { Serial.print("Codigo del servidor: "); Serial.print(code); Serial.print(" "); Serial.println(code < 0 ? http.errorToString(code) : resp); }
   http.end();
   return code >= 200 && code < 300;
 }
