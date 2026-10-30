@@ -150,7 +150,9 @@ static int decidir(Estado *e, int crudo, int ahora, int con_eventos) {
     }
 
     /* El pulverizador solo se apaga por tiempo; encenderlo exige autorización */
-    if (e->pulverizando && ahora - e->inicio_pulv >= cfg.pulveriza_ms) {
+    /* sigue pulverizando hasta que la cámara ya no ve plaga (tope: 20 s) */
+    if (e->pulverizando && ahora - e->inicio_pulv >= cfg.pulveriza_ms &&
+        (plaga <= 0.0f || ahora - e->inicio_pulv >= 20000)) {
         e->pulverizando = 0;
         if (con_eventos) emitir(EV_PULV_FIN, ahora);
     }

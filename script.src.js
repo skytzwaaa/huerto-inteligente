@@ -71,7 +71,8 @@
         e.regando = 0; e.fin_riego = ahora;
         if (conEventos) this.emitir(3, ahora);
       }
-      if (e.pulverizando && ahora - e.inicio_pulv >= c.pulveriza_ms) {
+      if (e.pulverizando && ahora - e.inicio_pulv >= c.pulveriza_ms &&
+          (this.plaga <= 0 || ahora - e.inicio_pulv >= 20000)) {
         e.pulverizando = 0;
         if (conEventos) this.emitir(6, ahora);
       }
