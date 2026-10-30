@@ -2,7 +2,7 @@
    Huerto Inteligente · script.js
    1. Carga el motor escrito en C (main.c -> main.wasm).
    2. Corre la simulación del huerto: cada 100 ms el motor decide. Todo
-      es simulado: dos zonas de suelo, temperatura y humedad del aire,
+      es simulado: un sensor de suelo, un DHT22 (temperatura y humedad del aire),
       nivel del depósito y pulverizador.
    3. Dibuja el corte del huerto (hero), el gráfico de 60 s y el historial.
    4. Mide el rendimiento: C/WebAssembly frente a JavaScript.
@@ -36,18 +36,16 @@
       this.ultimoT = 0;
       this.reloj = 0;
       this.suelo = f(42);
-      this.suelo2 = f(36);
       this.tanque = f(80);
       this.tempC = f(21);
       this.aire = f(70);
-      this.crudo2 = 0;
       this.temp10 = 210;
       this.aireLec = 70;
       this.vacioAvisado = 0;
       this.semilla = 20261121 >>> 0;
     }
     estadoInicial() {
-      return { regando: 0, inicio_riego: 0, fin_riego: -1000000, plaga_pendiente: 0, pulverizando: 0, inicio_pulv: 0, nivel_deposito: 80, humedad: 0, humedad2: 0 };
+      return { regando: 0, inicio_riego: 0, fin_riego: -1000000, plaga_pendiente: 0, pulverizando: 0, inicio_pulv: 0, nivel_deposito: 80, humedad: 0 };
     }
     static limitar(v, a, b) { return v < a ? a : v > b ? b : v; }
     static azar(obj, key) { obj[key] = (Math.imul(obj[key], 1664525) + 1013904223) >>> 0; return obj[key] >>> 8; }
@@ -57,11 +55,10 @@
       if (r === 0) return 0;
       return MotorJS.limitar(Math.trunc(((crudo - this.cfg.seco) * 100) / r), 0, 100);
     }
-    decidir2(e, crudo1, crudo2, ahora, conEventos) {
+    decidir(e, crudo, ahora, conEventos) {
       const c = this.cfg;
-      const h1 = this.hi_humedad(crudo1), h2 = this.hi_humedad(crudo2);
-      const h = Math.trunc((h1 + h2) / 2);              // decide el promedio de las dos zonas
-      e.humedad = h1; e.humedad2 = h2;
+      const h = this.hi_humedad(crudo);
+      e.humedad = h;
       if (conEventos) this.reloj = ahora;
       if (!e.regando) {
         if (h < c.umbral_riego && ahora - e.fin_riego >= c.espera_ms) {
@@ -81,9 +78,7 @@
       }
       return e.regando | (e.pulverizando << 1) | (e.plaga_pendiente << 2);
     }
-    decidir(e, crudo, ahora, conEventos) { return this.decidir2(e, crudo, crudo, ahora, conEventos); }
     hi_paso(crudo, ahora) { return this.decidir(this.st, crudo, ahora, true); }
-    hi_paso2(c1, c2, ahora) { return this.decidir2(this.st, c1, c2, ahora, true); }
     hi_reportar_plaga(t) { if (!this.st.plaga_pendiente) { this.st.plaga_pendiente = 1; this.emitir(4, t); } }
     hi_autorizar(t) {
       const s = this.st;
@@ -101,7 +96,6 @@
     hi_evento() { const x = this.cola.shift(); if (!x) return 0; this.ultimoT = x[1]; return x[0]; }
     hi_evento_t() { return this.ultimoT; }
     hi_humedad_calc() { return this.st.humedad; }
-    hi_humedad2_calc() { return this.st.humedad2; }
     hi_simular(dtMs, sol, bomba) {
       const f = Math.fround;
       const dt = f(dtMs / 1000);
@@ -112,19 +106,13 @@
       }
       const evap = f(f(0.25) + f(sol * f(0.03)));
       let s = f(this.suelo - f(evap * dt));
-      let s2 = f(this.suelo2 - f(f(evap * f(1.1)) * dt));
       if (agua) {
         s = f(s + f(f(7) * dt));
-        s2 = f(s2 + f(f(7) * dt));
         this.tanque = f(this.tanque - f(f(0.04) * dt));
       }
       if (this.st.pulverizando) this.tanque = f(this.tanque - f(f(0.1) * dt));
-      const mezcla = f(f(f(s - s2) * f(0.006)) * dt);
-      s = f(s - mezcla);
-      s2 = f(s2 + mezcla);
       s = Math.min(100, Math.max(0, s));
-      s2 = Math.min(100, Math.max(0, s2));
-      this.suelo = s; this.suelo2 = s2;
+      this.suelo = s;
       if (this.tanque < 0) this.tanque = 0;
       this.st.nivel_deposito = Math.trunc(f(this.tanque + f(0.5)));
       const objT = f(f(16) + f(sol * f(0.17)));
@@ -133,19 +121,14 @@
       this.aire = f(this.aire + f(f(f(objA - this.aire) * f(0.05)) * dt));
       const c = this.cfg;
       const crudo = f(c.seco + f(f(f(c.mojado - c.seco) * s) / 100));
-      const crudoB = f(c.seco + f(f(f(c.mojado - c.seco) * s2) / 100));
       const ruido = (MotorJS.azar(this, "semilla") % 17) - 8;
-      const ruido2 = (MotorJS.azar(this, "semilla") % 17) - 8;
-      this.crudo2 = Math.trunc(crudoB) + ruido2;
       const rt = (MotorJS.azar(this, "semilla") % 11) - 5;
       this.temp10 = Math.trunc(f(f(this.tempC + f(rt * f(0.02))) * f(10)));
       const ra = (MotorJS.azar(this, "semilla") % 11) - 5;
       this.aireLec = Math.trunc(f(this.aire + f(ra * f(0.2))));
       return Math.trunc(crudo) + ruido;
     }
-    hi_crudo2() { return this.crudo2; }
     hi_suelo_x10() { return Math.trunc(Math.fround(this.suelo * 10)); }
-    hi_suelo2_x10() { return Math.trunc(Math.fround(this.suelo2 * 10)); }
     hi_temp_x10() { return this.temp10; }
     hi_aire() { return this.aireLec; }
     hi_nivel() { return this.st.nivel_deposito; }
@@ -161,7 +144,6 @@
     hi_lluvia(p) {
       const f = Math.fround;
       this.suelo = Math.min(100, f(this.suelo + p));
-      this.suelo2 = Math.min(100, f(this.suelo2 + p));
     }
     hi_bench(n) {
       const e = this.estadoInicial();
@@ -210,7 +192,7 @@
   const HIST5 = 13;                 // 13 muestras = la última hora
   const sim = {
     t: 0, ciclos: 0, riegos: 0, bomba: 0, pulv: 0, plaga: 0,
-    crudo: 0, crudo2: 0, humedad: 0, humedad2: 0, suelo: 42, suelo2: 36, sol: 30, velocidad: 1,
+    crudo: 0, humedad: 0, suelo: 42, sol: 30, velocidad: 1,
     temp: 21, aire: 70, nivel: 80,
     hist: [], hist5: [], muestraNueva: false, silencio: false, acum: 0,
   };
@@ -252,21 +234,18 @@
 
   function paso() {
     sim.crudo = M.hi_simular(TICK, sim.sol, sim.bomba);
-    sim.crudo2 = M.hi_crudo2();
-    const est = M.hi_paso2(sim.crudo, sim.crudo2, sim.t);
+    const est = M.hi_paso(sim.crudo, sim.t);
     if ((est & 1) && !sim.bomba) sim.riegos++;
     sim.bomba = est & 1;
     sim.pulv = (est >> 1) & 1;
     sim.plaga = (est >> 2) & 1;
     sim.humedad = M.hi_humedad_calc();
-    sim.humedad2 = M.hi_humedad2_calc();
     sim.suelo = M.hi_suelo_x10() / 10;
-    sim.suelo2 = M.hi_suelo2_x10() / 10;
     sim.temp = M.hi_temp_x10() / 10;
     sim.aire = M.hi_aire();
     sim.nivel = M.hi_nivel();
     sim.ciclos++;
-    sim.hist.push([sim.suelo, sim.bomba, sim.pulv, sim.suelo2]);
+    sim.hist.push([sim.suelo, sim.bomba, sim.pulv]);
     if (sim.hist.length > HIST) sim.hist.shift();
     if (sim.t % MUESTRA_MS === 0) guardarMuestra();
     let ev;
@@ -276,7 +255,7 @@
 
   /* Igual que el ESP32: una muestra de todos los sensores cada 5 minutos */
   function guardarMuestra() {
-    sim.hist5.push({ s1: sim.suelo, s2: sim.suelo2, tk: sim.nivel, temp: sim.temp, aire: sim.aire });
+    sim.hist5.push({ s1: sim.suelo, tk: sim.nivel, temp: sim.temp, aire: sim.aire });
     if (sim.hist5.length > HIST5) sim.hist5.shift();
     sim.muestraNueva = true;
   }
@@ -309,8 +288,7 @@
 
   function actualizarTextos() {
     const lect = {
-      z1: `${sim.humedad} %`,
-      z2: `${sim.humedad2} %`,
+      suelo: `${sim.humedad} %`,
       temp: `${fmt1(sim.temp)} °C`,
       aire: `${sim.aire} %`,
       tank: `${sim.nivel} %`,
@@ -321,7 +299,7 @@
     rp.classList.toggle("on", !!sim.bomba);
     $("#s-time").textContent = fmtTiempoLargo(sim.t);
     $("#s-cycles").textContent = sim.ciclos.toLocaleString("es-PE");
-    $("#s-raw").textContent = `${sim.crudo} · ${sim.crudo2}`;
+    $("#s-raw").textContent = `${sim.crudo}`;
     $("#s-irr").textContent = sim.riegos;
     $("#pest-card").hidden = !sim.plaga;
 
@@ -467,14 +445,8 @@
   function dibujarHuerto(dt) {
     const { ctx, w, h } = soil;
     if (!ctx) return;
-    const z1 = sim.suelo / 100, z2 = sim.suelo2 / 100;
+    const suelo = sim.suelo / 100;
     const ground = h * 0.42;
-    // Sensores de las dos zonas; entre ellos la humedad pasa suavemente de una a otra
-    const xs1 = w * 0.15, xs2 = w * 0.78;
-    const nivelEn = (x) => {
-      const t = Math.min(1, Math.max(0, (x - xs1) / (xs2 - xs1)));
-      return z1 + (z2 - z1) * (t * t * (3 - 2 * t));
-    };
     ctx.clearRect(0, 0, w, h);
 
     // Cielo nocturno con un sol que crece según la evaporación
@@ -534,9 +506,9 @@
     ctx.drawImage(soil.tierra.cv, 0, ground - 12, w, prof + 12);
 
     // Frente de humedad: la tierra mojada se oscurece y toma un brillo cian
-    const frente = h - prof * Math.max(z1, z2);
+    const frente = h - prof * suelo;
     soil.ola += dt * 0.002;
-    const borde = (x) => h - prof * nivelEn(x) + Math.sin(x * 0.03 + soil.ola) * 3;
+    const borde = (x) => frente + Math.sin(x * 0.03 + soil.ola) * 3;
     ctx.beginPath();
     ctx.moveTo(0, h);
     for (let x = 0; x <= w; x += 8) ctx.lineTo(x, borde(x));
@@ -574,7 +546,7 @@
 
     // Planta: las hojas caen y pierden color cuando falta agua
     const px = w * 0.42;
-    const vigor = Math.min(1, Math.max(0, (nivelEn(px) * 100 - 10) / 50));
+    const vigor = Math.min(1, Math.max(0, (sim.suelo - 10) / 50));
     const caida = (1 - vigor) * 0.55;
     const hoja = mezclar("c9b458", "b4f06e", vigor);
     ctx.strokeStyle = mezclar("8a7a45", "7fc59b", vigor);
@@ -599,28 +571,54 @@
       ctx.restore();
     });
 
-    // Dos sensores capacitivos clavados en la tierra, uno por zona
-    const sensor = (sx, nombre, pct, crudo) => {
+    // Sensor capacitivo de suelo clavado en la tierra
+    {
+      const sx = w * 0.64;
       const sy = ground - h * 0.08, alto = h * 0.08 + prof * 0.55;
       ctx.fillStyle = "#1c3b2c";
       ctx.strokeStyle = COL.clorofila;
       ctx.lineWidth = 1.2;
       rectRedondo(ctx, sx - 9, sy, 18, alto, 4);
       ctx.fill(); ctx.stroke();
-      const nivel = (alto - 6) * (pct / 100);                    // el sensor "se llena" con la humedad
+      const nivel = (alto - 6) * (sim.humedad / 100);            // el sensor "se llena" con la humedad
       ctx.fillStyle = "rgba(85,224,242,0.55)";
       ctx.fillRect(sx - 6, sy + alto - 3 - nivel, 12, nivel);
       ctx.textAlign = "center";
       ctx.fillStyle = COL.texto;
       ctx.font = "600 12px 'Chakra Petch', sans-serif";
-      ctx.fillText(`${nombre} · ${Math.round(pct)} %`, sx, sy - 18);
+      ctx.fillText(`Suelo · ${sim.humedad} %`, sx, sy - 18);
       ctx.font = "11px 'JetBrains Mono', monospace";
       ctx.fillStyle = COL.dim;
-      ctx.fillText(`crudo ${crudo}`, sx, sy - 5);
+      ctx.fillText(`crudo ${sim.crudo}`, sx, sy - 5);
       ctx.textAlign = "left";
-    };
-    sensor(xs1, "Zona 1", sim.humedad, sim.crudo);
-    sensor(xs2, "Zona 2", sim.humedad2, sim.crudo2);
+    }
+
+    // DHT22 en un poste sobre la tierra: mide temperatura y humedad del aire
+    {
+      const dx = Math.min(w * 0.87, w - 50), bw = 28, bh = 36;
+      const topPoste = ground - h * 0.11, by = topPoste - bh;
+      ctx.strokeStyle = "#6f8a7d";
+      ctx.lineWidth = 3;
+      ctx.lineCap = "round";
+      ctx.beginPath(); ctx.moveTo(dx, ground); ctx.lineTo(dx, topPoste); ctx.stroke();
+      ctx.fillStyle = "#e6f0ec";                                  // cuerpo claro con rejilla, como el DHT22 real
+      rectRedondo(ctx, dx - bw / 2, by, bw, bh, 4);
+      ctx.fill();
+      ctx.strokeStyle = "rgba(20,70,60,0.55)";
+      ctx.lineWidth = 1.4;
+      for (let k = 0; k < 5; k++) {
+        const yy = by + 7 + k * 5;
+        ctx.beginPath(); ctx.moveTo(dx - bw / 2 + 5, yy); ctx.lineTo(dx + bw / 2 - 5, yy); ctx.stroke();
+      }
+      ctx.textAlign = "center";
+      ctx.fillStyle = COL.texto;
+      ctx.font = "600 12px 'Chakra Petch', sans-serif";
+      ctx.fillText("DHT22", dx, by - 18);
+      ctx.font = "11px 'JetBrains Mono', monospace";
+      ctx.fillStyle = COL.dim;
+      ctx.fillText(`${fmt1(sim.temp)} °C · ${sim.aire} %`, dx, by - 5);
+      ctx.textAlign = "left";
+    }
 
     // Lluvia: líneas que caen sobre todo el huerto durante 1,5 s
     if (soil.lluvia > 0) {
@@ -708,19 +706,7 @@
     });
     ctx.setLineDash([]);
 
-    // Zona 2: línea punteada, más fina
-    if (sim.hist.length > 1) {
-      ctx.strokeStyle = COL.agua2;
-      ctx.lineWidth = 1.6;
-      ctx.setLineDash([4, 3]);
-      ctx.beginPath();
-      sim.hist.forEach((q, i) => { const x = X(i + off), y = Y(q[3]); i ? ctx.lineTo(x, y) : ctx.moveTo(x, y); });
-      ctx.stroke();
-      ctx.setLineDash([]);
-      ctx.beginPath(); ctx.arc(X(HIST - 1), Y(sim.hist[sim.hist.length - 1][3]), 3, 0, Math.PI * 2); ctx.stroke();
-    }
-
-    // Línea de humedad de la zona 1
+    // Línea de humedad del suelo
     if (sim.hist.length > 1) {
       ctx.strokeStyle = COL.agua;
       ctx.lineWidth = 2;
@@ -781,9 +767,9 @@
     };
     linea((q) => q.tk, Y, COL.texto, 1.6, [2, 4]);          // depósito
     linea((q) => q.temp, YT, COL.sol, 1.8, []);             // temperatura
-    linea((q) => q.s2, Y, COL.agua2, 1.8, [5, 4]);          // zona 2
+    linea((q) => q.aire, Y, COL.agua2, 1.8, [5, 4]);        // humedad del aire (DHT22)
     ctx.shadowColor = COL.agua; ctx.shadowBlur = 8;
-    linea((q) => q.s1, Y, COL.agua, 2.2, []);               // zona 1
+    linea((q) => q.s1, Y, COL.agua, 2.2, []);               // humedad del suelo
     ctx.shadowBlur = 0;
     ctx.fillStyle = COL.agua;
     ctx.beginPath(); ctx.arc(X(HIST5 - 1), Y(m[m.length - 1].s1), 4, 0, Math.PI * 2); ctx.fill();
