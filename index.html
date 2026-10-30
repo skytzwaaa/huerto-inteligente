@@ -55,11 +55,15 @@
         <figure class="hero-live glass" data-tilt-off>
           <canvas id="soil" aria-label="Corte del huerto: planta, suelo con nivel de humedad y sensor, animado en tiempo real" role="img"></canvas>
           <figcaption class="readout">
-            <div class="ro"><span>Humedad medida</span><strong id="r-hum">--</strong></div>
+            <div class="ro"><span>Humedad zona 1</span><strong data-v="z1">--</strong></div>
+            <div class="ro"><span>Humedad zona 2</span><strong data-v="z2">--</strong></div>
             <div class="ro"><span>Bomba de riego</span><strong id="r-pump">--</strong></div>
+            <div class="ro"><span>Temperatura</span><strong data-v="temp">--</strong></div>
+            <div class="ro"><span>Humedad del aire</span><strong data-v="aire">--</strong></div>
+            <div class="ro"><span>Depósito</span><strong data-v="tank">--</strong></div>
             <div class="ro"><span>Motor</span><strong id="r-engine">Cargando…</strong></div>
           </figcaption>
-          <p class="live-note">El suelo es simulado. Cada decisión de riego la toma <code>main.c</code>.</p>
+          <p class="live-note">Los sensores son simulados. Cada decisión de riego la toma <code>main.c</code>.</p>
         </figure>
       </div>
     </section>
@@ -69,23 +73,23 @@
       <div class="wrap">
         <div class="sec-head">
           <h2 data-reveal>Así funciona el huerto</h2>
-          <p class="sec-lead" data-reveal>Cada 100 milisegundos el sistema repite tres pasos. Más abajo puedes moverlo tú: es una simulación del prototipo, y cada decisión la toma su motor escrito en C.</p>
+          <p class="sec-lead" data-reveal>Cada 100 milisegundos el sistema repite tres pasos. Más abajo puedes moverlo tú: es una simulación del prototipo, y cada decisión la toma su motor escrito en C. Los sensores, el clima y el depósito también son simulados.</p>
         </div>
         <div class="steps3">
           <article class="dstep glass">
             <span class="num">1</span>
             <h3>Mide</h3>
-            <p>Los sensores capacitivos leen la humedad de la tierra y la cámara vigila las hojas.</p>
+            <p>Dos sensores capacitivos leen la humedad de la tierra, un DHT22 mide la temperatura y la humedad del aire, un ultrasónico mide el nivel del depósito y la cámara vigila las hojas.</p>
           </article>
           <article class="dstep glass">
             <span class="num">2</span>
             <h3>Decide</h3>
-            <p>Si la humedad baja de 35 %, riega hasta llegar a 60 %. Nunca riega más de 5 segundos seguidos y espera 20 segundos entre riegos.</p>
+            <p>Si la humedad promedio de las dos zonas baja de 35 %, riega hasta llegar a 60 %. Nunca riega más de 5 segundos seguidos y espera 20 segundos entre riegos.</p>
           </article>
           <article class="dstep glass">
             <span class="num">3</span>
             <h3>Actúa, con tu permiso</h3>
-            <p>La bomba de riego actúa sola. El pulverizador solo funciona si tú lo autorizas y si el depósito tiene líquido.</p>
+            <p>La bomba de riego actúa sola, o la enciendes tú desde la app y se apaga sola a los 30 segundos. El pulverizador solo funciona si tú lo autorizas y si el depósito tiene líquido.</p>
           </article>
         </div>
         <h3 class="lab-title" data-reveal>Pruébalo en vivo</h3>
@@ -93,24 +97,33 @@
           <!-- Gráfico de los últimos 60 segundos -->
           <div class="panel glass lab-chart">
             <div class="panel-head">
-              <h3>Humedad en los últimos 60 segundos</h3>
+              <h3>Humedad por zona, últimos 60 s</h3>
               <div class="speed" role="group" aria-label="Velocidad de la simulación">
                 <button type="button" class="chip is-on" data-speed="1" aria-pressed="true">1×</button>
                 <button type="button" class="chip" data-speed="4" aria-pressed="false">4×</button>
+              <button type="button" class="chip" data-speed="60" aria-pressed="false">60×</button>
                 <button type="button" class="chip" data-speed="0" aria-pressed="false">Pausa</button>
               </div>
             </div>
             <canvas id="chart" role="img" aria-label="Gráfico de la humedad del suelo con los periodos de riego y pulverización"></canvas>
             <ul class="legend">
-              <li><i class="lg-water"></i>Humedad del suelo</li>
+              <li><i class="lg-water"></i>Zona 1</li>
+              <li><i class="lg-z2"></i>Zona 2</li>
               <li><i class="lg-pump"></i>Bomba de riego encendida</li>
               <li><i class="lg-spray"></i>Pulverizador encendido</li>
               <li><i class="lg-limit"></i>Umbrales</li>
             </ul>
+            <div class="stats sensors" aria-label="Lecturas de los sensores">
+              <div><span>Humedad zona 1</span><strong data-v="z1">--</strong></div>
+              <div><span>Humedad zona 2</span><strong data-v="z2">--</strong></div>
+              <div><span>Temperatura</span><strong data-v="temp">--</strong></div>
+              <div><span>Hum. del aire</span><strong data-v="aire">--</strong></div>
+              <div><span>Depósito</span><strong data-v="tank">--</strong></div>
+            </div>
             <div class="stats">
               <div><span>Tiempo simulado</span><strong id="s-time">0,0 s</strong></div>
               <div><span>Ciclos del motor</span><strong id="s-cycles">0</strong></div>
-              <div><span>Lectura cruda</span><strong id="s-raw">--</strong></div>
+              <div><span>Crudo zona 1 · 2</span><strong id="s-raw">--</strong></div>
               <div><span>Riegos</span><strong id="s-irr">0</strong></div>
             </div>
           </div>
@@ -139,14 +152,18 @@
               <input type="range" id="in-max" min="1" max="15" value="5">
             </div>
             <div class="field">
-              <label for="in-tank">Nivel del depósito del pulverizador</label>
+              <label for="in-tank">Nivel del depósito</label>
               <output for="in-tank" id="o-tank">80 %</output>
               <input type="range" id="in-tank" min="0" max="100" value="80">
+              <p class="hint" id="o-cm">Sensor ultrasónico: -- cm hasta el agua</p>
             </div>
             <div class="lab-actions">
+              <button type="button" class="btn btn-solid btn-sm" id="b-manual" aria-pressed="false">Regar ahora</button>
+              <button type="button" class="btn btn-line btn-sm" id="b-fill">Rellenar depósito</button>
               <button type="button" class="btn btn-line btn-sm" id="b-rain">Simular lluvia</button>
               <button type="button" class="btn btn-line btn-sm" id="b-pest">Simular plaga</button>
             </div>
+            <p class="hint hint-on" id="manual-note" hidden></p>
           </div>
 
           <!-- Aviso de plaga: aparece cuando el motor espera autorización -->
@@ -162,6 +179,22 @@
                 <button type="button" class="btn btn-line btn-sm" id="b-dismiss">Descartar aviso</button>
               </div>
             </div>
+          </div>
+
+          <!-- Historial: una muestra de todos los sensores cada 5 minutos -->
+          <div class="panel glass lab-hist">
+            <div class="panel-head">
+              <h3>Historial de la última hora</h3>
+              <button type="button" class="btn btn-line btn-sm" id="b-avanzar">Avanzar 30 min</button>
+            </div>
+            <p class="hist-note">El ESP32 guarda una muestra de todos los sensores cada 5 minutos. Aquí se ve la última hora simulada.</p>
+            <canvas id="hist" role="img" aria-label="Historial de la última hora: humedad de las dos zonas, nivel del depósito y temperatura, con una muestra cada 5 minutos"></canvas>
+            <ul class="legend">
+              <li><i class="lg-water"></i>Humedad zona 1</li>
+              <li><i class="lg-z2"></i>Humedad zona 2</li>
+              <li><i class="lg-tank"></i>Depósito</li>
+              <li><i class="lg-temp"></i>Temperatura (eje derecho, °C)</li>
+            </ul>
           </div>
 
           <!-- Registro de eventos que emite el motor en C -->

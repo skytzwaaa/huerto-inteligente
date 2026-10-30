@@ -1,11 +1,15 @@
 /*
  * main.c — Motor de decisión del Huerto Inteligente
  * ------------------------------------------------------------------
- * Es la misma lógica que corre el ESP32 del prototipo:
- *   1. Convierte la lectura cruda del sensor capacitivo en % de humedad.
- *   2. Riega solo si la humedad baja del umbral, con límites de seguridad
- *      (tiempo máximo de riego y pausa obligatoria entre riegos).
- *   3. El pulverizador NUNCA actúa solo: espera la autorización del
+ * Es la lógica de control del huerto:
+ *   1. Convierte la lectura cruda de cada sensor capacitivo (zona 1 y
+ *      zona 2) en % de humedad.
+ *   2. Riega solo si la humedad PROMEDIO de las dos zonas baja del
+ *      umbral, con límites de seguridad (tiempo máximo de riego y
+ *      pausa entre riegos).
+ *   3. La bomba también se puede encender a mano desde la app; en ese
+ *      caso se apaga sola a los 30 s.
+ *   4. El pulverizador NUNCA actúa solo: espera la autorización del
  *      usuario y se bloquea si el depósito está casi vacío.
  *
  * El archivo se compila de dos formas:
@@ -14,7 +18,7 @@
  *             -Wl,--no-entry -o main.wasm main.c
  *   - Como programa de terminal (simulación y prueba de rendimiento):
  *       gcc -O2 -o huerto main.c
- *       ./huerto              (simula 90 segundos del huerto)
+ *       ./huerto              (simula 120 segundos del huerto)
  *       ./huerto --bench 5000000
  *
  * La versión WebAssembly no usa la biblioteca estándar de C, por eso
@@ -32,7 +36,7 @@
 #endif
 
 /* ================================================================
- * 1. Configuración (mismos valores que el código del prototipo)
+ * 1. Configuración
  * ================================================================ */
 typedef struct {
     int seco;          /* lectura cruda con el sensor al aire      -> 0 %   */
@@ -43,25 +47,29 @@ typedef struct {
     int espera_ms;     /* pausa obligatoria entre dos riegos                */
     int pulveriza_ms;  /* duración de una pulverización autorizada          */
     int nivel_minimo;  /* % de depósito por debajo del cual se bloquea      */
+    int manual_max_ms; /* la bomba encendida desde la app se apaga sola     */
 } Config;
 
-static Config cfg = { 2498, 1000, 35, 60, 5000, 20000, 3000, 10 };
+static Config cfg = { 2498, 1000, 35, 60, 5000, 20000, 3000, 10, 30000 };
 
 /* ================================================================
  * 2. Estado del controlador
  * ================================================================ */
 typedef struct {
-    int regando;          /* 1 si la bomba de riego está encendida       */
+    int regando;          /* 1 si la bomba de riego está encendida (auto) */
     int inicio_riego;     /* ms en que empezó el riego actual            */
     int fin_riego;        /* ms en que terminó el último riego           */
     int plaga_pendiente;  /* 1 si hay una plaga esperando autorización   */
     int pulverizando;     /* 1 si la bomba del pulverizador está activa  */
     int inicio_pulv;      /* ms en que empezó la pulverización           */
     int nivel_deposito;   /* % de líquido en el depósito                 */
-    int humedad;          /* última humedad calculada (%)                */
+    int humedad;          /* última humedad de la zona 1 (%)             */
+    int manual;           /* 1 si la bomba está encendida desde la app   */
+    int inicio_manual;    /* ms en que se encendió a mano                */
+    int humedad2;         /* última humedad de la zona 2 (%)             */
 } Estado;
 
-static Estado st = { 0, 0, -1000000, 0, 0, 0, 80, 0 };
+static Estado st = { 0, 0, -1000000, 0, 0, 0, 80, 0, 0, 0, 0 };
 
 /* ================================================================
  * 3. Cola de eventos: la interfaz la lee para mostrar el registro
@@ -76,7 +84,11 @@ enum {
     EV_PULV_FIN,          /* 6: terminó la pulverización                */
     EV_BLOQUEO_DEPOSITO,  /* 7: autorización rechazada, depósito vacío  */
     EV_SIN_PLAGA,         /* 8: autorización ignorada, no había plaga   */
-    EV_DESCARTADA         /* 9: el usuario descartó el aviso de plaga   */
+    EV_DESCARTADA,        /* 9: el usuario descartó el aviso de plaga   */
+    EV_MANUAL_INICIO,     /* 10: el usuario encendió la bomba desde la app */
+    EV_MANUAL_FIN,        /* 11: el usuario apagó la bomba desde la app */
+    EV_MANUAL_LIMITE,     /* 12: la bomba manual se cortó a los 30 s    */
+    EV_DEPOSITO_VACIO     /* 13: la bomba giró pero no había agua       */
 };
 
 #define COLA 32
@@ -84,6 +96,7 @@ static int cola_ev[COLA];
 static int cola_t[COLA];
 static int c_ini = 0, c_fin = 0;
 static int ultimo_t = 0;
+static int reloj = 0;     /* último instante (ms) que vio el controlador */
 
 static void emitir(int ev, int t) {
     int sig = (c_fin + 1) % COLA;
@@ -107,14 +120,28 @@ int hi_humedad(int crudo) {
     return limitar((crudo - cfg.seco) * 100 / rango, 0, 100);
 }
 
-/* Núcleo del riego. Devuelve el estado como bits:
- * bit 0 = bomba de riego, bit 1 = pulverizador, bit 2 = plaga pendiente */
-static int decidir(Estado *e, int crudo, int ahora, int con_eventos) {
-    int h = hi_humedad(crudo);
-    e->humedad = h;
+/* Núcleo del riego con dos zonas. Devuelve el estado como bits:
+ * bit 0 = bomba de riego (auto o manual), bit 1 = pulverizador,
+ * bit 2 = plaga pendiente, bit 3 = bomba encendida desde la app */
+static int decidir2(Estado *e, int crudo1, int crudo2, int ahora, int con_eventos) {
+    int h1 = hi_humedad(crudo1);
+    int h2 = hi_humedad(crudo2);
+    int h = (h1 + h2) / 2;               /* decide el promedio de las dos zonas */
+    e->humedad = h1;
+    e->humedad2 = h2;
+    if (con_eventos) reloj = ahora;
 
-    /* Riego autónomo con histéresis: empieza bajo un umbral, para sobre otro */
-    if (!e->regando) {
+    /* Bomba encendida desde la app: se apaga sola al llegar al límite */
+    if (e->manual && ahora - e->inicio_manual >= cfg.manual_max_ms) {
+        e->manual = 0;
+        e->fin_riego = ahora;
+        if (con_eventos) emitir(EV_MANUAL_LIMITE, ahora);
+    }
+
+    if (e->manual) {
+        e->regando = 0;                  /* mientras mandas tú, el riego automático espera */
+    } else if (!e->regando) {
+        /* Riego autónomo con histéresis: empieza bajo un umbral, para sobre otro */
         if (h < cfg.umbral_riego && ahora - e->fin_riego >= cfg.espera_ms) {
             e->regando = 1;
             e->inicio_riego = ahora;
@@ -136,12 +163,21 @@ static int decidir(Estado *e, int crudo, int ahora, int con_eventos) {
         e->pulverizando = 0;
         if (con_eventos) emitir(EV_PULV_FIN, ahora);
     }
-    return e->regando | (e->pulverizando << 1) | (e->plaga_pendiente << 2);
+    return (e->regando | e->manual) | (e->pulverizando << 1)
+         | (e->plaga_pendiente << 2) | (e->manual << 3);
+}
+
+/* Versión de un solo sensor (la usa la prueba de rendimiento) */
+static int decidir(Estado *e, int crudo, int ahora, int con_eventos) {
+    return decidir2(e, crudo, crudo, ahora, con_eventos);
 }
 
 /* Un ciclo del controlador real: se llama cada 100 ms desde la web */
 EXPORT("hi_paso")
 int hi_paso(int crudo, int ahora) { return decidir(&st, crudo, ahora, 1); }
+
+EXPORT("hi_paso2")
+int hi_paso2(int crudo1, int crudo2, int ahora) { return decidir2(&st, crudo1, crudo2, ahora, 1); }
 
 /* La cámara (IA) reporta una posible plaga: queda esperando al usuario */
 EXPORT("hi_reportar_plaga")
@@ -170,8 +206,20 @@ void hi_descartar(int ahora) {
     if (st.plaga_pendiente) { st.plaga_pendiente = 0; emitir(EV_DESCARTADA, ahora); }
 }
 
-EXPORT("hi_nivel_deposito")
-void hi_nivel_deposito(int porcentaje) { st.nivel_deposito = limitar(porcentaje, 0, 100); }
+/* El usuario enciende o apaga la bomba de riego desde la app */
+EXPORT("hi_bomba_manual")
+void hi_bomba_manual(int encender, int ahora) {
+    if (encender && !st.manual) {
+        st.manual = 1;
+        st.inicio_manual = ahora;
+        st.regando = 0;
+        emitir(EV_MANUAL_INICIO, ahora);
+    } else if (!encender && st.manual) {
+        st.manual = 0;
+        st.fin_riego = ahora;
+        emitir(EV_MANUAL_FIN, ahora);
+    }
+}
 
 /* Cambia los umbrales desde la interfaz (con valores siempre válidos) */
 EXPORT("hi_umbrales")
@@ -197,11 +245,27 @@ int hi_evento_t(void) { return ultimo_t; }
 EXPORT("hi_humedad_calc")
 int hi_humedad_calc(void) { return st.humedad; }
 
+EXPORT("hi_humedad2_calc")
+int hi_humedad2_calc(void) { return st.humedad2; }
+
 /* ================================================================
- * 5. Simulador del suelo (solo para la demo web y la terminal)
- *    En el huerto real este dato viene del sensor capacitivo.
+ * 5. Simulador del huerto (solo para la demo web y la terminal)
+ *    En el huerto real estos datos vienen de los sensores: dos
+ *    capacitivos de suelo, un DHT22 (temperatura y humedad del aire)
+ *    y un ultrasónico que mide el nivel del depósito.
  * ================================================================ */
-static float suelo = 42.0f;          /* humedad real simulada (%) */
+#define TANQUE_VACIO_CM 20.0f   /* distancia del sensor al agua con el depósito vacío */
+#define TANQUE_LLENO_CM  3.0f   /* distancia con el depósito lleno */
+
+static float suelo = 42.0f;          /* humedad real simulada, zona 1 (%) */
+static float suelo2 = 36.0f;         /* humedad real simulada, zona 2 (%) */
+static float tanque = 80.0f;         /* nivel real del depósito (%), con decimales */
+static float temp_c = 21.0f;         /* temperatura real del aire (°C) */
+static float aire = 70.0f;           /* humedad real del aire (%) */
+static int crudo2_ult = 0;           /* última lectura cruda de la zona 2 */
+static int temp_x10_ult = 210;       /* lo que mide el DHT22, con ruido (°C x10) */
+static int aire_ult = 70;            /* lo que mide el DHT22, con ruido (%) */
+static int vacio_avisado = 0;        /* para avisar una sola vez que se vació */
 static unsigned semilla = 20261121u; /* fecha de la feria como semilla */
 
 static unsigned azar(unsigned *s) {   /* generador congruencial lineal */
@@ -209,29 +273,96 @@ static unsigned azar(unsigned *s) {   /* generador congruencial lineal */
     return *s >> 8;
 }
 
-/* Avanza el suelo dt_ms. sol: 0-100 (evaporación). bomba: 0/1.
- * Devuelve la lectura cruda que daría el sensor, con ruido de ±8 */
+/* Avanza el huerto dt_ms. sol: 0-100 (evaporación). bomba: 0/1.
+ * Devuelve la lectura cruda de la zona 1 (±8 de ruido); la de la zona 2
+ * queda en hi_crudo2(). Las dos zonas reciben el mismo caudal, pero a la
+ * zona 2 le da más el sol y se seca un poco más rápido. */
 EXPORT("hi_simular")
 int hi_simular(int dt_ms, int sol, int bomba) {
     float dt = (float)dt_ms / 1000.0f;
-    suelo -= (0.25f + (float)sol * 0.03f) * dt;  /* evaporación */
-    if (bomba) suelo += 7.0f * dt;               /* caudal de la bomba de riego */
+
+    /* La bomba solo moja si el depósito tiene agua */
+    int agua = bomba;
+    if (bomba && tanque <= 0.0f) {
+        agua = 0;
+        if (!vacio_avisado) { vacio_avisado = 1; emitir(EV_DEPOSITO_VACIO, reloj); }
+    }
+
+    suelo -= (0.25f + (float)sol * 0.03f) * dt;           /* evaporación */
+    suelo2 -= (0.25f + (float)sol * 0.03f) * 1.1f * dt;
+    if (agua) {
+        suelo += 7.0f * dt;                               /* caudal de la bomba de riego */
+        suelo2 += 7.0f * dt;
+        tanque -= 0.04f * dt;                             /* gasto del depósito */
+    }
+    if (st.pulverizando) tanque -= 0.10f * dt;
+    float mezcla = (suelo - suelo2) * 0.006f * dt;        /* la humedad se reparte entre zonas vecinas */
+    suelo -= mezcla;
+    suelo2 += mezcla;
     if (suelo < 0.0f) suelo = 0.0f;
     if (suelo > 100.0f) suelo = 100.0f;
+    if (suelo2 < 0.0f) suelo2 = 0.0f;
+    if (suelo2 > 100.0f) suelo2 = 100.0f;
+    if (tanque < 0.0f) tanque = 0.0f;
+    st.nivel_deposito = (int)(tanque + 0.5f);
+
+    /* El aire se acerca poco a poco a lo que pide el sol */
+    float objetivo_t = 16.0f + (float)sol * 0.17f;
+    float objetivo_a = 80.0f - (float)sol * 0.45f;
+    temp_c += (objetivo_t - temp_c) * 0.05f * dt;
+    aire += (objetivo_a - aire) * 0.05f * dt;
+
     float crudo = (float)cfg.seco + (float)(cfg.mojado - cfg.seco) * suelo / 100.0f;
+    float crudo_b = (float)cfg.seco + (float)(cfg.mojado - cfg.seco) * suelo2 / 100.0f;
     int ruido = (int)(azar(&semilla) % 17u) - 8;
+    int ruido2 = (int)(azar(&semilla) % 17u) - 8;
+    crudo2_ult = (int)crudo_b + ruido2;
+    temp_x10_ult = (int)((temp_c + (float)((int)(azar(&semilla) % 11u) - 5) * 0.02f) * 10.0f);
+    aire_ult = (int)(aire + (float)((int)(azar(&semilla) % 11u) - 5) * 0.2f);
     return (int)crudo + ruido;
 }
 
-/* Humedad real del suelo simulado, multiplicada por 10 (un decimal) */
+EXPORT("hi_crudo2")
+int hi_crudo2(void) { return crudo2_ult; }
+
+/* Humedad real de cada zona, multiplicada por 10 (un decimal) */
 EXPORT("hi_suelo_x10")
 int hi_suelo_x10(void) { return (int)(suelo * 10.0f); }
 
-/* Agrega agua de golpe (botón "Lluvia" de la demo) */
+EXPORT("hi_suelo2_x10")
+int hi_suelo2_x10(void) { return (int)(suelo2 * 10.0f); }
+
+/* Lo que mide el DHT22: temperatura (°C x10) y humedad del aire (%) */
+EXPORT("hi_temp_x10")
+int hi_temp_x10(void) { return temp_x10_ult; }
+
+EXPORT("hi_aire")
+int hi_aire(void) { return aire_ult; }
+
+/* Nivel del depósito (%) y distancia que mide el ultrasónico (cm x10) */
+EXPORT("hi_nivel")
+int hi_nivel(void) { return st.nivel_deposito; }
+
+EXPORT("hi_distancia_x10")
+int hi_distancia_x10(void) {
+    return (int)((TANQUE_VACIO_CM - tanque / 100.0f * (TANQUE_VACIO_CM - TANQUE_LLENO_CM)) * 10.0f);
+}
+
+/* Fija el nivel del depósito (deslizador de la demo o botón "Rellenar") */
+EXPORT("hi_nivel_deposito")
+void hi_nivel_deposito(int porcentaje) {
+    st.nivel_deposito = limitar(porcentaje, 0, 100);
+    tanque = (float)st.nivel_deposito;
+    if (tanque > 0.0f) vacio_avisado = 0;
+}
+
+/* Agrega agua de golpe a las dos zonas (botón "Lluvia" de la demo) */
 EXPORT("hi_lluvia")
 void hi_lluvia(int puntos) {
     suelo += (float)puntos;
+    suelo2 += (float)puntos;
     if (suelo > 100.0f) suelo = 100.0f;
+    if (suelo2 > 100.0f) suelo2 = 100.0f;
 }
 
 /* ================================================================
@@ -241,7 +372,7 @@ void hi_lluvia(int puntos) {
  * ================================================================ */
 EXPORT("hi_bench")
 int hi_bench(int n) {
-    Estado e = { 0, 0, -1000000, 0, 0, 0, 80, 0 };
+    Estado e = { 0, 0, -1000000, 0, 0, 0, 80, 0, 0, 0, 0 };
     unsigned s = 7u;
     int encendida = 0;
     for (int i = 0; i < n; i++) {
@@ -271,6 +402,10 @@ static const char *nombre_evento(int ev) {
         case EV_BLOQUEO_DEPOSITO: return "Bloqueado: depósito casi vacío";
         case EV_SIN_PLAGA:        return "Autorización ignorada: no hay plaga";
         case EV_DESCARTADA:       return "Aviso de plaga descartado";
+        case EV_MANUAL_INICIO:    return "Bomba encendida a mano desde la app";
+        case EV_MANUAL_FIN:       return "Bomba apagada a mano desde la app";
+        case EV_MANUAL_LIMITE:    return "Bomba manual cortada por seguridad (30 s)";
+        case EV_DEPOSITO_VACIO:   return "Depósito vacío: la bomba no tiene agua";
         default:                  return "?";
     }
 }
@@ -286,18 +421,20 @@ int main(int argc, char **argv) {
         return 0;
     }
 
-    printf("Simulación de 90 s del Huerto Inteligente (sol = 50 %%)\n");
-    printf("  t(s)  suelo%%  crudo  humedad%%  bomba\n");
+    printf("Simulación de 120 s del Huerto Inteligente (sol = 50 %%)\n");
+    printf("  t(s)  zona1%%  zona2%%  temp  aire%%  depós%%  bomba\n");
     int bomba = 0;
-    for (int t = 0; t <= 90000; t += 100) {
+    for (int t = 0; t <= 120000; t += 100) {
         int crudo = hi_simular(100, 50, bomba);
         if (t == 40000) hi_reportar_plaga(t);
         if (t == 45000) hi_autorizar(t);
-        int estado = hi_paso(crudo, t);
+        if (t == 70000) hi_bomba_manual(1, t);    /* la bomba se enciende desde la app... */
+        int estado = hi_paso2(crudo, hi_crudo2(), t);   /* ...y se corta sola a los 30 s */
         bomba = estado & 1;
         if (t % 5000 == 0)
-            printf("  %4d  %5.1f   %4d   %5d     %s\n", t / 1000, hi_suelo_x10() / 10.0,
-                   crudo, hi_humedad_calc(), bomba ? "ON" : "off");
+            printf("  %4d  %5.1f   %5.1f  %4.1f   %3d    %3d    %s\n", t / 1000,
+                   hi_suelo_x10() / 10.0, hi_suelo2_x10() / 10.0, hi_temp_x10() / 10.0,
+                   hi_aire(), hi_nivel(), bomba ? ((estado >> 3) & 1 ? "MANUAL" : "ON") : "off");
         int ev;
         while ((ev = hi_evento()) != EV_NINGUNO)
             printf("        [%5.1f s] %s\n", hi_evento_t() / 1000.0, nombre_evento(ev));
