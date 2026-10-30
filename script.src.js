@@ -103,6 +103,13 @@
       if (s.nivel_deposito < this.cfg.nivel_minimo) { this.emitir(7, t); return 0; }
       s.plaga_pendiente = 0; s.pulverizando = 1; s.inicio_pulv = t; s.ultimo_aviso = t; this.emitir(5, t); return 1;
     }
+    hi_eliminar(t) {
+      const s = this.st;
+      if (s.pulverizando) return 0;
+      if (!s.plaga_pendiente && this.plaga <= 0) { this.emitir(8, t); return 0; }
+      if (s.nivel_deposito < this.cfg.nivel_minimo) { this.emitir(7, t); return 0; }
+      s.plaga_pendiente = 0; s.pulverizando = 1; s.inicio_pulv = t; s.ultimo_aviso = t; this.emitir(5, t); return 1;
+    }
     hi_descartar(t) { if (this.st.plaga_pendiente) { this.st.plaga_pendiente = 0; this.st.ultimo_aviso = t; this.emitir(9, t); } }
     hi_umbrales(r, p, m) {
       const c = this.cfg;
@@ -330,6 +337,7 @@
     $("#cam-conf").textContent = `${sim.confianza} %`;
     $("#cam-bar").style.width = `${sim.confianza}%`;
     $("#cam-count").textContent = sim.plagas;
+    $("#b-kill").disabled = !(sim.plagas > 0 || sim.plaga) || !!sim.pulv;
     $("#cam-estado").textContent = sim.pulv ? "Pulverizando" : sim.plaga ? "Plaga detectada" : sim.confianza > 5 ? "Analizando…" : "Sin plagas";
 
     // Depósito: el nivel baja solo con el uso; el deslizador lo sigue (salvo que lo estés moviendo)
@@ -980,6 +988,7 @@
     $("#b-pest").addEventListener("click", () => { M.hi_infestar(55); paso(); actualizarTextos(); });
 
     $("#b-avanzar").addEventListener("click", () => avanzar(30 * 60 * 1000));
+    $("#b-kill").addEventListener("click", () => { M.hi_eliminar(sim.t); paso(); actualizarTextos(); });
     $("#b-auth").addEventListener("click", () => { M.hi_autorizar(sim.t); paso(); actualizarTextos(); });
     $("#b-dismiss").addEventListener("click", () => { M.hi_descartar(sim.t); paso(); actualizarTextos(); });
 

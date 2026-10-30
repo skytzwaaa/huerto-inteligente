@@ -195,6 +195,16 @@ void hi_reportar_plaga(int ahora) {
 }
 
 /* El usuario toca "Autorizar pulverizador" en la app. Devuelve 1 si se aceptó */
+static int hi_autorizar_forzado(int ahora) {
+    if (st.nivel_deposito < cfg.nivel_minimo) { emitir(EV_BLOQUEO_DEPOSITO, ahora); return 0; }
+    st.plaga_pendiente = 0;
+    st.pulverizando = 1;
+    st.inicio_pulv = ahora;
+    st.ultimo_aviso = ahora;
+    emitir(EV_PULV_INICIO, ahora);
+    return 1;
+}
+
 EXPORT("hi_autorizar")
 int hi_autorizar(int ahora) {
     if (!st.plaga_pendiente) { emitir(EV_SIN_PLAGA, ahora); return 0; }
@@ -205,6 +215,14 @@ int hi_autorizar(int ahora) {
     st.ultimo_aviso = ahora;
     emitir(EV_PULV_INICIO, ahora);
     return 1;
+}
+
+/* Botón "Eliminar plagas": el usuario ordena pulverizar sin esperar el aviso de la cámara */
+EXPORT("hi_eliminar")
+int hi_eliminar(int ahora) {
+    if (st.pulverizando) return 0;
+    if (!st.plaga_pendiente && plaga <= 0.0f) { emitir(EV_SIN_PLAGA, ahora); return 0; }
+    return hi_autorizar_forzado(ahora);
 }
 
 /* El usuario revisa la foto y decide que no hace falta tratar */

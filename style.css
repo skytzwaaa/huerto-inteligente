@@ -471,3 +471,4 @@ select {
   *, *::before, *::after { transition: none !important; animation: none !important; }
   .cursor { display: none; }
 }
+.btn:disabled { opacity: .4; cursor: not-allowed; }
