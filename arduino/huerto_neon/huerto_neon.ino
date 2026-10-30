@@ -13,16 +13,17 @@ const char* API_KEY   = "huerto123456";                          // igual que AP
 
 // ---------- Pines ----------
 #define PIN_SOIL1   34
-#define PIN_SOIL2   35
+#define PIN_SOIL2   35   // (sin usar: la zona 2 se reemplazó por el DHT22)
 #define PIN_DHT     4
-#define PIN_TRIG    5
-#define PIN_ECHO    18
-#define PIN_RELAY1  23
+#define PIN_TRIG    32
+#define PIN_ECHO    33
+#define PIN_RELAY1  26   // relé 1: bomba de riego
 #define PIN_SDA     21
 #define PIN_SCL     22
 #define DHTTYPE DHT22
 
 // ---------- Configuración ----------
+const bool TIENE_SOIL2 = false;   // pon true si conectas un segundo sensor de suelo al GPIO 35
 const bool RELAY_ACTIVE_LOW = true;
 const unsigned long BOMBA_TOPE_MS    = 600000;  // tope de seguridad: 10 min, pase lo que pase
 const unsigned long BOMBA_DEF_MS     = 30000;   // si el servidor no responde, riega 30 s
@@ -114,7 +115,7 @@ String numOnull(float v, int dec = 1) { return isnan(v) ? "null" : String(v, dec
 
 String armarJson(bool conPump) {
   int s1 = aPorcentaje(leerSuelo(PIN_SOIL1), SOIL1_SECO, SOIL1_HUMEDO);
-  int s2 = aPorcentaje(leerSuelo(PIN_SOIL2), SOIL2_SECO, SOIL2_HUMEDO);
+  int s2 = TIENE_SOIL2 ? aPorcentaje(leerSuelo(PIN_SOIL2), SOIL2_SECO, SOIL2_HUMEDO) : -1;
   float t = dht.readTemperature();
   float h = dht.readHumidity();
   float dist = leerDistanciaCm();
@@ -126,7 +127,7 @@ String armarJson(bool conPump) {
 
   String j = "{";
   j += "\"soil1_pct\":" + String(s1) + ",";
-  j += "\"soil2_pct\":" + String(s2) + ",";
+  if (s2 >= 0) j += "\"soil2_pct\":" + String(s2) + ",";
   j += "\"temp\":" + numOnull(t) + ",";
   j += "\"hum\":" + numOnull(h) + ",";
   j += "\"tank_pct\":" + (nivel < 0 ? String("null") : String(nivel)) + ",";

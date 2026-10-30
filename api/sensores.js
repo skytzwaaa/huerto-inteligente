@@ -20,7 +20,7 @@ export default async function handler(req, res) {
       const poner = (k, v) => { if (v !== undefined && v !== null) cambios[k] = Number(v); };
       poner('soil1_pct', b.soil1_pct); poner('soil2_pct', b.soil2_pct); poner('pump', b.pump);
       if (lectura) {
-        cambios.temp = b.temp ?? null; cambios.hum = b.hum ?? null; cambios.tank_pct = b.tank_pct ?? null;
+        cambios.soil2_pct = b.soil2_pct ?? null; cambios.temp = b.temp ?? null; cambios.hum = b.hum ?? null; cambios.tank_pct = b.tank_pct ?? null;
         cambios.ts = Date.now();
       }
       if (Object.keys(cambios).length) await bd.patch('sensores', cambios);
