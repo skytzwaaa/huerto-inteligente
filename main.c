@@ -7,9 +7,7 @@
  *   2. Riega solo si la humedad PROMEDIO de las dos zonas baja del
  *      umbral, con límites de seguridad (tiempo máximo de riego y
  *      pausa entre riegos).
- *   3. La bomba también se puede encender a mano desde la app; en ese
- *      caso se apaga sola a los 30 s.
- *   4. El pulverizador NUNCA actúa solo: espera la autorización del
+ *   3. El pulverizador NUNCA actúa solo: espera la autorización del
  *      usuario y se bloquea si el depósito está casi vacío.
  *
  * El archivo se compila de dos formas:
@@ -47,10 +45,9 @@ typedef struct {
     int espera_ms;     /* pausa obligatoria entre dos riegos                */
     int pulveriza_ms;  /* duración de una pulverización autorizada          */
     int nivel_minimo;  /* % de depósito por debajo del cual se bloquea      */
-    int manual_max_ms; /* la bomba encendida desde la app se apaga sola     */
 } Config;
 
-static Config cfg = { 2498, 1000, 35, 60, 5000, 20000, 3000, 10, 30000 };
+static Config cfg = { 2498, 1000, 35, 60, 5000, 20000, 3000, 10 };
 
 /* ================================================================
  * 2. Estado del controlador
@@ -64,12 +61,10 @@ typedef struct {
     int inicio_pulv;      /* ms en que empezó la pulverización           */
     int nivel_deposito;   /* % de líquido en el depósito                 */
     int humedad;          /* última humedad de la zona 1 (%)             */
-    int manual;           /* 1 si la bomba está encendida desde la app   */
-    int inicio_manual;    /* ms en que se encendió a mano                */
     int humedad2;         /* última humedad de la zona 2 (%)             */
 } Estado;
 
-static Estado st = { 0, 0, -1000000, 0, 0, 0, 80, 0, 0, 0, 0 };
+static Estado st = { 0, 0, -1000000, 0, 0, 0, 80, 0, 0 };
 
 /* ================================================================
  * 3. Cola de eventos: la interfaz la lee para mostrar el registro
@@ -85,10 +80,7 @@ enum {
     EV_BLOQUEO_DEPOSITO,  /* 7: autorización rechazada, depósito vacío  */
     EV_SIN_PLAGA,         /* 8: autorización ignorada, no había plaga   */
     EV_DESCARTADA,        /* 9: el usuario descartó el aviso de plaga   */
-    EV_MANUAL_INICIO,     /* 10: el usuario encendió la bomba desde la app */
-    EV_MANUAL_FIN,        /* 11: el usuario apagó la bomba desde la app */
-    EV_MANUAL_LIMITE,     /* 12: la bomba manual se cortó a los 30 s    */
-    EV_DEPOSITO_VACIO     /* 13: la bomba giró pero no había agua       */
+    EV_DEPOSITO_VACIO     /* 10: la bomba giró pero no había agua       */
 };
 
 #define COLA 32
@@ -121,8 +113,7 @@ int hi_humedad(int crudo) {
 }
 
 /* Núcleo del riego con dos zonas. Devuelve el estado como bits:
- * bit 0 = bomba de riego (auto o manual), bit 1 = pulverizador,
- * bit 2 = plaga pendiente, bit 3 = bomba encendida desde la app */
+ * bit 0 = bomba de riego, bit 1 = pulverizador, bit 2 = plaga pendiente */
 static int decidir2(Estado *e, int crudo1, int crudo2, int ahora, int con_eventos) {
     int h1 = hi_humedad(crudo1);
     int h2 = hi_humedad(crudo2);
@@ -131,16 +122,7 @@ static int decidir2(Estado *e, int crudo1, int crudo2, int ahora, int con_evento
     e->humedad2 = h2;
     if (con_eventos) reloj = ahora;
 
-    /* Bomba encendida desde la app: se apaga sola al llegar al límite */
-    if (e->manual && ahora - e->inicio_manual >= cfg.manual_max_ms) {
-        e->manual = 0;
-        e->fin_riego = ahora;
-        if (con_eventos) emitir(EV_MANUAL_LIMITE, ahora);
-    }
-
-    if (e->manual) {
-        e->regando = 0;                  /* mientras mandas tú, el riego automático espera */
-    } else if (!e->regando) {
+    if (!e->regando) {
         /* Riego autónomo con histéresis: empieza bajo un umbral, para sobre otro */
         if (h < cfg.umbral_riego && ahora - e->fin_riego >= cfg.espera_ms) {
             e->regando = 1;
@@ -163,8 +145,7 @@ static int decidir2(Estado *e, int crudo1, int crudo2, int ahora, int con_evento
         e->pulverizando = 0;
         if (con_eventos) emitir(EV_PULV_FIN, ahora);
     }
-    return (e->regando | e->manual) | (e->pulverizando << 1)
-         | (e->plaga_pendiente << 2) | (e->manual << 3);
+    return e->regando | (e->pulverizando << 1) | (e->plaga_pendiente << 2);
 }
 
 /* Versión de un solo sensor (la usa la prueba de rendimiento) */
@@ -204,21 +185,6 @@ int hi_autorizar(int ahora) {
 EXPORT("hi_descartar")
 void hi_descartar(int ahora) {
     if (st.plaga_pendiente) { st.plaga_pendiente = 0; emitir(EV_DESCARTADA, ahora); }
-}
-
-/* El usuario enciende o apaga la bomba de riego desde la app */
-EXPORT("hi_bomba_manual")
-void hi_bomba_manual(int encender, int ahora) {
-    if (encender && !st.manual) {
-        st.manual = 1;
-        st.inicio_manual = ahora;
-        st.regando = 0;
-        emitir(EV_MANUAL_INICIO, ahora);
-    } else if (!encender && st.manual) {
-        st.manual = 0;
-        st.fin_riego = ahora;
-        emitir(EV_MANUAL_FIN, ahora);
-    }
 }
 
 /* Cambia los umbrales desde la interfaz (con valores siempre válidos) */
@@ -372,7 +338,7 @@ void hi_lluvia(int puntos) {
  * ================================================================ */
 EXPORT("hi_bench")
 int hi_bench(int n) {
-    Estado e = { 0, 0, -1000000, 0, 0, 0, 80, 0, 0, 0, 0 };
+    Estado e = { 0, 0, -1000000, 0, 0, 0, 80, 0, 0 };
     unsigned s = 7u;
     int encendida = 0;
     for (int i = 0; i < n; i++) {
@@ -402,9 +368,6 @@ static const char *nombre_evento(int ev) {
         case EV_BLOQUEO_DEPOSITO: return "Bloqueado: depósito casi vacío";
         case EV_SIN_PLAGA:        return "Autorización ignorada: no hay plaga";
         case EV_DESCARTADA:       return "Aviso de plaga descartado";
-        case EV_MANUAL_INICIO:    return "Bomba encendida a mano desde la app";
-        case EV_MANUAL_FIN:       return "Bomba apagada a mano desde la app";
-        case EV_MANUAL_LIMITE:    return "Bomba manual cortada por seguridad (30 s)";
         case EV_DEPOSITO_VACIO:   return "Depósito vacío: la bomba no tiene agua";
         default:                  return "?";
     }
@@ -428,13 +391,12 @@ int main(int argc, char **argv) {
         int crudo = hi_simular(100, 50, bomba);
         if (t == 40000) hi_reportar_plaga(t);
         if (t == 45000) hi_autorizar(t);
-        if (t == 70000) hi_bomba_manual(1, t);    /* la bomba se enciende desde la app... */
-        int estado = hi_paso2(crudo, hi_crudo2(), t);   /* ...y se corta sola a los 30 s */
+        int estado = hi_paso2(crudo, hi_crudo2(), t);
         bomba = estado & 1;
         if (t % 5000 == 0)
             printf("  %4d  %5.1f   %5.1f  %4.1f   %3d    %3d    %s\n", t / 1000,
                    hi_suelo_x10() / 10.0, hi_suelo2_x10() / 10.0, hi_temp_x10() / 10.0,
-                   hi_aire(), hi_nivel(), bomba ? ((estado >> 3) & 1 ? "MANUAL" : "ON") : "off");
+                   hi_aire(), hi_nivel(), bomba ? "ON" : "off");
         int ev;
         while ((ev = hi_evento()) != EV_NINGUNO)
             printf("        [%5.1f s] %s\n", hi_evento_t() / 1000.0, nombre_evento(ev));

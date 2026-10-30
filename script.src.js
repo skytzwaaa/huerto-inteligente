@@ -3,7 +3,7 @@
    1. Carga el motor escrito en C (main.c -> main.wasm).
    2. Corre la simulación del huerto: cada 100 ms el motor decide. Todo
       es simulado: dos zonas de suelo, temperatura y humedad del aire,
-      nivel del depósito, bomba manual y pulverizador.
+      nivel del depósito y pulverizador.
    3. Dibuja el corte del huerto (hero), el gráfico de 60 s y el historial.
    4. Mide el rendimiento: C/WebAssembly frente a JavaScript.
    5. Animaciones: Lenis (scroll suave) + GSAP ScrollTrigger, cursor
@@ -30,7 +30,7 @@
   class MotorJS {
     constructor() {
       const f = Math.fround;
-      this.cfg = { seco: 2498, mojado: 1000, umbral_riego: 35, umbral_parar: 60, max_riego_ms: 5000, espera_ms: 20000, pulveriza_ms: 3000, nivel_minimo: 10, manual_max_ms: 30000 };
+      this.cfg = { seco: 2498, mojado: 1000, umbral_riego: 35, umbral_parar: 60, max_riego_ms: 5000, espera_ms: 20000, pulveriza_ms: 3000, nivel_minimo: 10 };
       this.st = this.estadoInicial();
       this.cola = [];
       this.ultimoT = 0;
@@ -47,7 +47,7 @@
       this.semilla = 20261121 >>> 0;
     }
     estadoInicial() {
-      return { regando: 0, inicio_riego: 0, fin_riego: -1000000, plaga_pendiente: 0, pulverizando: 0, inicio_pulv: 0, nivel_deposito: 80, humedad: 0, manual: 0, inicio_manual: 0, humedad2: 0 };
+      return { regando: 0, inicio_riego: 0, fin_riego: -1000000, plaga_pendiente: 0, pulverizando: 0, inicio_pulv: 0, nivel_deposito: 80, humedad: 0, humedad2: 0 };
     }
     static limitar(v, a, b) { return v < a ? a : v > b ? b : v; }
     static azar(obj, key) { obj[key] = (Math.imul(obj[key], 1664525) + 1013904223) >>> 0; return obj[key] >>> 8; }
@@ -63,13 +63,7 @@
       const h = Math.trunc((h1 + h2) / 2);              // decide el promedio de las dos zonas
       e.humedad = h1; e.humedad2 = h2;
       if (conEventos) this.reloj = ahora;
-      if (e.manual && ahora - e.inicio_manual >= c.manual_max_ms) {
-        e.manual = 0; e.fin_riego = ahora;
-        if (conEventos) this.emitir(12, ahora);
-      }
-      if (e.manual) {
-        e.regando = 0;
-      } else if (!e.regando) {
+      if (!e.regando) {
         if (h < c.umbral_riego && ahora - e.fin_riego >= c.espera_ms) {
           e.regando = 1; e.inicio_riego = ahora;
           if (conEventos) this.emitir(1, ahora);
@@ -85,7 +79,7 @@
         e.pulverizando = 0;
         if (conEventos) this.emitir(6, ahora);
       }
-      return (e.regando | e.manual) | (e.pulverizando << 1) | (e.plaga_pendiente << 2) | (e.manual << 3);
+      return e.regando | (e.pulverizando << 1) | (e.plaga_pendiente << 2);
     }
     decidir(e, crudo, ahora, conEventos) { return this.decidir2(e, crudo, crudo, ahora, conEventos); }
     hi_paso(crudo, ahora) { return this.decidir(this.st, crudo, ahora, true); }
@@ -98,11 +92,6 @@
       s.plaga_pendiente = 0; s.pulverizando = 1; s.inicio_pulv = t; this.emitir(5, t); return 1;
     }
     hi_descartar(t) { if (this.st.plaga_pendiente) { this.st.plaga_pendiente = 0; this.emitir(9, t); } }
-    hi_bomba_manual(encender, t) {
-      const s = this.st;
-      if (encender && !s.manual) { s.manual = 1; s.inicio_manual = t; s.regando = 0; this.emitir(10, t); }
-      else if (!encender && s.manual) { s.manual = 0; s.fin_riego = t; this.emitir(11, t); }
-    }
     hi_umbrales(r, p, m) {
       const c = this.cfg;
       c.umbral_riego = MotorJS.limitar(r, 5, 90);
@@ -119,7 +108,7 @@
       let agua = bomba;
       if (bomba && this.tanque <= 0) {
         agua = 0;
-        if (!this.vacioAvisado) { this.vacioAvisado = 1; this.emitir(13, this.reloj); }
+        if (!this.vacioAvisado) { this.vacioAvisado = 1; this.emitir(10, this.reloj); }
       }
       const evap = f(f(0.25) + f(sol * f(0.03)));
       let s = f(this.suelo - f(evap * dt));
@@ -219,9 +208,8 @@
   const HIST = 600;                 // 60 s de historia (600 ciclos)
   const MUESTRA_MS = 300000;        // el ESP32 guarda una muestra cada 5 min
   const HIST5 = 13;                 // 13 muestras = la última hora
-  const MANUAL_MAX_MS = 30000;      // la bomba manual se apaga sola a los 30 s
   const sim = {
-    t: 0, ciclos: 0, riegos: 0, bomba: 0, manual: 0, manualDesde: 0, pulv: 0, plaga: 0,
+    t: 0, ciclos: 0, riegos: 0, bomba: 0, pulv: 0, plaga: 0,
     crudo: 0, crudo2: 0, humedad: 0, humedad2: 0, suelo: 42, suelo2: 36, sol: 30, velocidad: 1,
     temp: 21, aire: 70, nivel: 80,
     hist: [], hist5: [], muestraNueva: false, silencio: false, acum: 0,
@@ -238,10 +226,7 @@
     7: ["Orden rechazada: depósito con menos de 10 %", "ev-bloqueo"],
     8: ["Autorización ignorada: no había plaga pendiente", "ev-bloqueo"],
     9: ["Aviso de plaga descartado por el usuario", "ev-ok"],
-    10: ["Bomba encendida a mano desde la app", "ev-riego"],
-    11: ["Bomba apagada a mano desde la app", "ev-ok"],
-    12: ["Bomba manual apagada por seguridad a los 30 s", "ev-riego"],
-    13: ["Depósito vacío: la bomba giró sin agua", "ev-bloqueo"],
+    10: ["Depósito vacío: la bomba giró sin agua", "ev-bloqueo"],
     100: ["Lluvia simulada: entró agua a la tierra", "ev-riego"],  // eventos de la demo, no del motor
     101: ["Depósito rellenado al 100 %", "ev-ok"],
   };
@@ -273,9 +258,6 @@
     sim.bomba = est & 1;
     sim.pulv = (est >> 1) & 1;
     sim.plaga = (est >> 2) & 1;
-    const man = (est >> 3) & 1;
-    if (man && !sim.manual) sim.manualDesde = sim.t;
-    sim.manual = man;
     sim.humedad = M.hi_humedad_calc();
     sim.humedad2 = M.hi_humedad2_calc();
     sim.suelo = M.hi_suelo_x10() / 10;
@@ -335,7 +317,7 @@
     };
     $$("[data-v]").forEach((el) => { el.textContent = lect[el.dataset.v]; });
     const rp = $("#r-pump");
-    rp.textContent = sim.manual ? "Manual" : sim.bomba ? "Regando" : "Apagada";
+    rp.textContent = sim.bomba ? "Regando" : "Apagada";
     rp.classList.toggle("on", !!sim.bomba);
     $("#s-time").textContent = fmtTiempoLargo(sim.t);
     $("#s-cycles").textContent = sim.ciclos.toLocaleString("es-PE");
@@ -348,17 +330,6 @@
     if (document.activeElement !== tank && +tank.value !== sim.nivel) tank.value = sim.nivel;
     $("#o-tank").textContent = `${sim.nivel} %`;
     $("#o-cm").textContent = `Sensor ultrasónico: ${fmt1(M.hi_distancia_x10() / 10)} cm hasta el agua`;
-
-    // Bomba manual (la orden que mandaría la app)
-    const bm = $("#b-manual");
-    bm.textContent = sim.manual ? "Apagar bomba" : "Regar ahora";
-    bm.setAttribute("aria-pressed", sim.manual ? "true" : "false");
-    const nota = $("#manual-note");
-    nota.hidden = !sim.manual;
-    if (sim.manual) {
-      const quedan = Math.max(0, Math.ceil((MANUAL_MAX_MS - (sim.t - sim.manualDesde)) / 1000));
-      nota.textContent = `Bomba encendida desde la app. Se apaga sola en ${quedan} s.`;
-    }
   }
 
   /* -------------------------------------------------------------------
@@ -886,13 +857,6 @@
     });
     $("#b-pest").addEventListener("click", () => { M.hi_reportar_plaga(sim.t); paso(); actualizarTextos(); });
 
-    // Bomba manual: la orden que mandaría el botón de la app (se apaga sola a los 30 s)
-    $("#b-manual").addEventListener("click", () => {
-      M.hi_bomba_manual(sim.manual ? 0 : 1, sim.t);
-      paso();
-      actualizarTextos();
-      dibujarGrafico();
-    });
     $("#b-fill").addEventListener("click", () => {
       M.hi_nivel_deposito(100);
       registrar(101, sim.t);

@@ -3,7 +3,7 @@
    1. Carga el motor escrito en C (main.c -> main.wasm).
    2. Corre la simulación del huerto: cada 100 ms el motor decide. Todo
       es simulado: dos zonas de suelo, temperatura y humedad del aire,
-      nivel del depósito, bomba manual y pulverizador.
+      nivel del depósito y pulverizador.
    3. Dibuja el corte del huerto (hero), el gráfico de 60 s y el historial.
    4. Mide el rendimiento: C/WebAssembly frente a JavaScript.
    5. Animaciones: Lenis (scroll suave) + GSAP ScrollTrigger, cursor
@@ -23,14 +23,14 @@
      base64, así la página también funciona al abrir index.html con doble
      clic (los navegadores no cargan .wasm desde file://).
      ------------------------------------------------------------------- */
-  const WASM_B64 = "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i0MAAABPXUUNACAAqA8LQYCAgIB4CwsAQQAoAtCIgIAACwsAQQAoAtSIgIAACwsAQQAoAqSIgIAACz4BAX0CQEEAKgK4iICAAEMAAMjClUMAAIhBlEMAAKBBkkMAACBBlCIAi0MAAABPXUUNACAAqA8LQYCAgIB4C0YBAX9BACAAQeQAIABB5ABIGyIBQQAgAUEAShsiATYCpIiAgABBACABsjgCuIiAgAACQCAAQQFIDQBBAEEAOgD0ioCAAAsLbwECfUEAQQAqAryIgIAAIACyIgGSIgI4AryIgIAAQQBBACoCwIiAgAAgAZIiATgCwIiAgAACQCACQwAAyEJeRQ0AQQBBgICglgQ2AryIgIAACwJAIAFDAADIQl5FDQBBAEGAgKCWBDYCwIiAgAALC+sBAQp/AkACQCAAQQFODQBBACEBDAELQQAoAoCIgIAAIQJBACgCiIiAgAAhA0EAKAKEiICAACEEQcD7QiEFQQchBkEAIQdBACEBQQAhCEEAIQkDQCAGQY3M5QBsQd/mu+MDaiIGQQh2QdsLcEGcf2xBqJIJakHaC24hCgJAAkAgCA0AIAcgCSAKIAJIIAcgBWtBn5wBSnEiCBshCQwBCwJAIAogBEgNACAHIQVBACEIDAELIAhBACAHIAlrIANIIgobIQggBSAHIAobIQULIAdBCmohByAIQQFxIAFqIQEgAEF/aiIADQALCyABCwtfAQBBgAgLWCMAAAA8AAAAiBMAAAAAAAAAAAAAwL3w/wAAAAAAAAAAAAAAAFAAAAAAAAAAAAAAAAAAAAAAAAAAAACgQgAAKEIAABBCAACoQQAAjEIBKTUB0gAAAEYAAAAA8gIEbmFtZQAKCW1haW4ud2FzbQHAAhgACmhpX2h1bWVkYWQBB2hpX3Bhc28CCGRlY2lkaXIyAwhoaV9wYXNvMgQRaGlfcmVwb3J0YXJfcGxhZ2EFDGhpX2F1dG9yaXphcgYMaGlfZGVzY2FydGFyBw9oaV9ib21iYV9tYW51YWwIC2hpX3VtYnJhbGVzCQloaV9ldmVudG8KC2hpX2V2ZW50b190Cw9oaV9odW1lZGFkX2NhbGMMEGhpX2h1bWVkYWQyX2NhbGMNCmhpX3NpbXVsYXIOCWhpX2NydWRvMg8MaGlfc3VlbG9feDEwEA1oaV9zdWVsbzJfeDEwEQtoaV90ZW1wX3gxMBIHaGlfYWlyZRMIaGlfbml2ZWwUEGhpX2Rpc3RhbmNpYV94MTAVEWhpX25pdmVsX2RlcG9zaXRvFgloaV9sbHV2aWEXCGhpX2JlbmNoBxIBAA9fX3N0YWNrX3BvaW50ZXIJCAEABS5kYXRhADgJcHJvZHVjZXJzAQxwcm9jZXNzZWQtYnkBDFVidW50dSBjbGFuZxExOC4xLjMgKDF1YnVudHUxKQAsD3RhcmdldF9mZWF0dXJlcwIrD211dGFibGUtZ2xvYmFscysIc2lnbi1leHQ=";
+  const WASM_B64 = "AGFzbQEAAAABKgdgAX8Bf2ACf38Bf2AFf39/f38Bf2ADf39/AX9gAX8AYAN/f38AYAABfwMYFwABAgMEAAQFBgYGBgMGBgYGBgYGBAQABAUBcAEBAQUDAQACBggBfwFB8IoECwfEAhcGbWVtb3J5AgAKaGlfaHVtZWRhZAAAB2hpX3Bhc28AAQhoaV9wYXNvMgADEWhpX3JlcG9ydGFyX3BsYWdhAAQMaGlfYXV0b3JpemFyAAUMaGlfZGVzY2FydGFyAAYLaGlfdW1icmFsZXMABwloaV9ldmVudG8ACAtoaV9ldmVudG9fdAAJD2hpX2h1bWVkYWRfY2FsYwAKEGhpX2h1bWVkYWQyX2NhbGMACwpoaV9zaW11bGFyAAwJaGlfY3J1ZG8yAA0MaGlfc3VlbG9feDEwAA4NaGlfc3VlbG8yX3gxMAAPC2hpX3RlbXBfeDEwABAHaGlfYWlyZQARCGhpX25pdmVsABIQaGlfZGlzdGFuY2lhX3gxMAATEWhpX25pdmVsX2RlcG9zaXRvABQJaGlfbGx1dmlhABUIaGlfYmVuY2gAFgq7GBcnACAAQeQAbEG44HBqQaZ0bSIAQeQAIABB5ABIGyIAQQAgAEEAShsLFgBBjIiAgAAgACAAIAFBARCCgICAAAuABQECfyAAIAJB5ABsQbjgcGpBpnRtIgJB5AAgAkHkAEgbIgJBACACQQBKGyICNgIgIAAgAUHkAGxBuOBwakGmdG0iAUHkACABQeQASBsiAUEAIAFBAEobIgE2AhwgAiABaiECAkAgBEUNAEEAIAM2AuiKgIAACyACQQF2IQECQAJAAkACQCAAKAIAIgUNAEEAIQIgAUEAKAKAiICAAE4NAyADIAAoAghrQaCcAUgNAyAAIAM2AgRBASECIABBATYCACAERQ0DQQEhBUEBIQJBACgC1IiAgAAiBkEBakEgbyIBQQAoAtCIgIAARg0BDAILQQAhAgJAIAFBACgChIiAgABIDQAgACADNgIIIABBADYCACAERQ0DQQAhAkECIQVBACgC1IiAgAAiBkEBakEgbyIBQQAoAtCIgIAARg0BDAILIAUhAiADIAAoAgRrQQAoAoiIgIAASA0CIAAgAzYCCCAAQQA2AgBBACECIARFDQJBACECQQMhBUEAKALUiICAACIGQQFqQSBvIgFBACgC0IiAgABHDQELQQAgAUEBasBBIG82AtCIgIAAC0EAIAE2AtSIgIAAIAZBAnQiAUHgiYCAAGogAzYCACABQeCIgIAAaiAFNgIACwJAAkAgACgCECIBDQBBACEBDAELIAMgACgCFGtBuBdIDQBBACEBIABBADYCECAERQ0AQQAhAQJAQQAoAtSIgIAAIgVBAWpBIG8iBEEAKALQiICAAEcNAEEAIARBAWrAQSBvNgLQiICAAAtBACAENgLUiICAACAFQQJ0IgRB4ImAgABqIAM2AgAgBEHgiICAAGpBBjYCAAsgAUEBdCACciAAKAIMQQJ0cgsWAEGMiICAACAAIAEgAkEBEIKAgIAAC30BAn8CQEEAKAKYiICAAA0AQQBBATYCmIiAgAACQEEAKALUiICAACIBQQFqQSBvIgJBACgC0IiAgABHDQBBACACQQFqwEEgbzYC0IiAgAALQQAgAjYC1IiAgAAgAUECdCICQeCJgIAAaiAANgIAIAJB4IiAgABqQQQ2AgALC/wBAQR/QQAhAQJAAkACQEEAKAKYiICAAA0AQQghAkEAKALUiICAACIDQQFqQSBvIgRBACgC0IiAgABGDQEMAgsCQEEAKAKkiICAAEEJSg0AQQAhAUEHIQJBACgC1IiAgAAiA0EBakEgbyIEQQAoAtCIgIAARg0BDAILQQAgADYCoIiAgABBAEKAgICAEDcCmIiAgABBASEBQQUhAkEAKALUiICAACIDQQFqQSBvIgRBACgC0IiAgABHDQELQQAgBEEBasBBIG82AtCIgIAAC0EAIAQ2AtSIgIAAIANBAnQiBEHgiYCAAGogADYCACAEQeCIgIAAaiACNgIAIAELfgECfwJAQQAoApiIgIAARQ0AQQBBADYCmIiAgAACQEEAKALUiICAACIBQQFqQSBvIgJBACgC0IiAgABHDQBBACACQQFqwEEgbzYC0IiAgAALQQAgAjYC1IiAgAAgAUECdCICQeCJgIAAaiAANgIAIAJB4IiAgABqQQk2AgALC2gAQQAgAEHaACAAQdoASBsiAEEFIABBBUobIgA2AoCIgIAAQQAgAkGw6gEgAkGw6gFIGyICQegHIAJB6AdKGzYCiIiAgABBACAAQQVqIgAgAUHkACABQeQASBsgACABShs2AoSIgIAAC10BAn9BACEAAkBBACgC0IiAgAAiAUEAKALUiICA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AAAAAAAAUAAAAAAAAAAAAAAAAACgQgAAKEIAABBCAACoQQAAjEIBKTUB0gAAAEYAAAAA4QIEbmFtZQAKCW1haW4ud2FzbQGvAhcACmhpX2h1bWVkYWQBB2hpX3Bhc28CCGRlY2lkaXIyAwhoaV9wYXNvMgQRaGlfcmVwb3J0YXJfcGxhZ2EFDGhpX2F1dG9yaXphcgYMaGlfZGVzY2FydGFyBwtoaV91bWJyYWxlcwgJaGlfZXZlbnRvCQtoaV9ldmVudG9fdAoPaGlfaHVtZWRhZF9jYWxjCxBoaV9odW1lZGFkMl9jYWxjDApoaV9zaW11bGFyDQloaV9jcnVkbzIODGhpX3N1ZWxvX3gxMA8NaGlfc3VlbG8yX3gxMBALaGlfdGVtcF94MTARB2hpX2FpcmUSCGhpX25pdmVsExBoaV9kaXN0YW5jaWFfeDEwFBFoaV9uaXZlbF9kZXBvc2l0bxUJaGlfbGx1dmlhFghoaV9iZW5jaAcSAQAPX19zdGFja19wb2ludGVyCQgBAAUuZGF0YQA4CXByb2R1Y2VycwEMcHJvY2Vzc2VkLWJ5AQxVYnVudHUgY2xhbmcRMTguMS4zICgxdWJ1bnR1MSkALA90YXJnZXRfZmVhdHVyZXMCKw9tdXRhYmxlLWdsb2JhbHMrCHNpZ24tZXh0";
 
   /* Copia exacta de la lógica de main.c en JavaScript. Se usa para la
      comparación de rendimiento y como respaldo si WebAssembly no carga. */
   class MotorJS {
     constructor() {
       const f = Math.fround;
-      this.cfg = { seco: 2498, mojado: 1000, umbral_riego: 35, umbral_parar: 60, max_riego_ms: 5000, espera_ms: 20000, pulveriza_ms: 3000, nivel_minimo: 10, manual_max_ms: 30000 };
+      this.cfg = { seco: 2498, mojado: 1000, umbral_riego: 35, umbral_parar: 60, max_riego_ms: 5000, espera_ms: 20000, pulveriza_ms: 3000, nivel_minimo: 10 };
       this.st = this.estadoInicial();
       this.cola = [];
       this.ultimoT = 0;
@@ -47,7 +47,7 @@
       this.semilla = 20261121 >>> 0;
     }
     estadoInicial() {
-      return { regando: 0, inicio_riego: 0, fin_riego: -1000000, plaga_pendiente: 0, pulverizando: 0, inicio_pulv: 0, nivel_deposito: 80, humedad: 0, manual: 0, inicio_manual: 0, humedad2: 0 };
+      return { regando: 0, inicio_riego: 0, fin_riego: -1000000, plaga_pendiente: 0, pulverizando: 0, inicio_pulv: 0, nivel_deposito: 80, humedad: 0, humedad2: 0 };
     }
     static limitar(v, a, b) { return v < a ? a : v > b ? b : v; }
     static azar(obj, key) { obj[key] = (Math.imul(obj[key], 1664525) + 1013904223) >>> 0; return obj[key] >>> 8; }
@@ -63,13 +63,7 @@
       const h = Math.trunc((h1 + h2) / 2);              // decide el promedio de las dos zonas
       e.humedad = h1; e.humedad2 = h2;
       if (conEventos) this.reloj = ahora;
-      if (e.manual && ahora - e.inicio_manual >= c.manual_max_ms) {
-        e.manual = 0; e.fin_riego = ahora;
-        if (conEventos) this.emitir(12, ahora);
-      }
-      if (e.manual) {
-        e.regando = 0;
-      } else if (!e.regando) {
+      if (!e.regando) {
         if (h < c.umbral_riego && ahora - e.fin_riego >= c.espera_ms) {
           e.regando = 1; e.inicio_riego = ahora;
           if (conEventos) this.emitir(1, ahora);
@@ -85,7 +79,7 @@
         e.pulverizando = 0;
         if (conEventos) this.emitir(6, ahora);
       }
-      return (e.regando | e.manual) | (e.pulverizando << 1) | (e.plaga_pendiente << 2) | (e.manual << 3);
+      return e.regando | (e.pulverizando << 1) | (e.plaga_pendiente << 2);
     }
     decidir(e, crudo, ahora, conEventos) { return this.decidir2(e, crudo, crudo, ahora, conEventos); }
     hi_paso(crudo, ahora) { return this.decidir(this.st, crudo, ahora, true); }
@@ -98,11 +92,6 @@
       s.plaga_pendiente = 0; s.pulverizando = 1; s.inicio_pulv = t; this.emitir(5, t); return 1;
     }
     hi_descartar(t) { if (this.st.plaga_pendiente) { this.st.plaga_pendiente = 0; this.emitir(9, t); } }
-    hi_bomba_manual(encender, t) {
-      const s = this.st;
-      if (encender && !s.manual) { s.manual = 1; s.inicio_manual = t; s.regando = 0; this.emitir(10, t); }
-      else if (!encender && s.manual) { s.manual = 0; s.fin_riego = t; this.emitir(11, t); }
-    }
     hi_umbrales(r, p, m) {
       const c = this.cfg;
       c.umbral_riego = MotorJS.limitar(r, 5, 90);
@@ -119,7 +108,7 @@
       let agua = bomba;
       if (bomba && this.tanque <= 0) {
         agua = 0;
-        if (!this.vacioAvisado) { this.vacioAvisado = 1; this.emitir(13, this.reloj); }
+        if (!this.vacioAvisado) { this.vacioAvisado = 1; this.emitir(10, this.reloj); }
       }
       const evap = f(f(0.25) + f(sol * f(0.03)));
       let s = f(this.suelo - f(evap * dt));
@@ -219,9 +208,8 @@
   const HIST = 600;                 // 60 s de historia (600 ciclos)
   const MUESTRA_MS = 300000;        // el ESP32 guarda una muestra cada 5 min
   const HIST5 = 13;                 // 13 muestras = la última hora
-  const MANUAL_MAX_MS = 30000;      // la bomba manual se apaga sola a los 30 s
   const sim = {
-    t: 0, ciclos: 0, riegos: 0, bomba: 0, manual: 0, manualDesde: 0, pulv: 0, plaga: 0,
+    t: 0, ciclos: 0, riegos: 0, bomba: 0, pulv: 0, plaga: 0,
     crudo: 0, crudo2: 0, humedad: 0, humedad2: 0, suelo: 42, suelo2: 36, sol: 30, velocidad: 1,
     temp: 21, aire: 70, nivel: 80,
     hist: [], hist5: [], muestraNueva: false, silencio: false, acum: 0,
@@ -238,10 +226,7 @@
     7: ["Orden rechazada: depósito con menos de 10 %", "ev-bloqueo"],
     8: ["Autorización ignorada: no había plaga pendiente", "ev-bloqueo"],
     9: ["Aviso de plaga descartado por el usuario", "ev-ok"],
-    10: ["Bomba encendida a mano desde la app", "ev-riego"],
-    11: ["Bomba apagada a mano desde la app", "ev-ok"],
-    12: ["Bomba manual apagada por seguridad a los 30 s", "ev-riego"],
-    13: ["Depósito vacío: la bomba giró sin agua", "ev-bloqueo"],
+    10: ["Depósito vacío: la bomba giró sin agua", "ev-bloqueo"],
     100: ["Lluvia simulada: entró agua a la tierra", "ev-riego"],  // eventos de la demo, no del motor
     101: ["Depósito rellenado al 100 %", "ev-ok"],
   };
@@ -273,9 +258,6 @@
     sim.bomba = est & 1;
     sim.pulv = (est >> 1) & 1;
     sim.plaga = (est >> 2) & 1;
-    const man = (est >> 3) & 1;
-    if (man && !sim.manual) sim.manualDesde = sim.t;
-    sim.manual = man;
     sim.humedad = M.hi_humedad_calc();
     sim.humedad2 = M.hi_humedad2_calc();
     sim.suelo = M.hi_suelo_x10() / 10;
@@ -335,7 +317,7 @@
     };
     $$("[data-v]").forEach((el) => { el.textContent = lect[el.dataset.v]; });
     const rp = $("#r-pump");
-    rp.textContent = sim.manual ? "Manual" : sim.bomba ? "Regando" : "Apagada";
+    rp.textContent = sim.bomba ? "Regando" : "Apagada";
     rp.classList.toggle("on", !!sim.bomba);
     $("#s-time").textContent = fmtTiempoLargo(sim.t);
     $("#s-cycles").textContent = sim.ciclos.toLocaleString("es-PE");
@@ -348,17 +330,6 @@
     if (document.activeElement !== tank && +tank.value !== sim.nivel) tank.value = sim.nivel;
     $("#o-tank").textContent = `${sim.nivel} %`;
     $("#o-cm").textContent = `Sensor ultrasónico: ${fmt1(M.hi_distancia_x10() / 10)} cm hasta el agua`;
-
-    // Bomba manual (la orden que mandaría la app)
-    const bm = $("#b-manual");
-    bm.textContent = sim.manual ? "Apagar bomba" : "Regar ahora";
-    bm.setAttribute("aria-pressed", sim.manual ? "true" : "false");
-    const nota = $("#manual-note");
-    nota.hidden = !sim.manual;
-    if (sim.manual) {
-      const quedan = Math.max(0, Math.ceil((MANUAL_MAX_MS - (sim.t - sim.manualDesde)) / 1000));
-      nota.textContent = `Bomba encendida desde la app. Se apaga sola en ${quedan} s.`;
-    }
   }
 
   /* -------------------------------------------------------------------
@@ -886,13 +857,6 @@
     });
     $("#b-pest").addEventListener("click", () => { M.hi_reportar_plaga(sim.t); paso(); actualizarTextos(); });
 
-    // Bomba manual: la orden que mandaría el botón de la app (se apaga sola a los 30 s)
-    $("#b-manual").addEventListener("click", () => {
-      M.hi_bomba_manual(sim.manual ? 0 : 1, sim.t);
-      paso();
-      actualizarTextos();
-      dibujarGrafico();
-    });
     $("#b-fill").addEventListener("click", () => {
       M.hi_nivel_deposito(100);
       registrar(101, sim.t);
